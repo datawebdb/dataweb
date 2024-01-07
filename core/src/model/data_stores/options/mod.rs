@@ -7,10 +7,12 @@ use crate::error::MeshError;
 
 #[cfg(feature = "datafusion")]
 use self::file_directory::{FileDirectoryConnection, FileDirectorySource};
+use self::flight_sql::{FlightSQLSource, FlightSqlConnection};
 #[cfg(feature = "trino")]
 use self::trino::{TrinoConnection, TrinoSource};
 
 pub mod file_directory;
+pub mod flight_sql;
 pub mod trino;
 
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -60,6 +62,7 @@ pub enum ConnectionOptions {
     FileDirectory(FileDirectoryConnection),
     #[cfg(feature = "trino")]
     Trino(TrinoConnection),
+    FlightSQL(FlightSqlConnection),
 }
 
 /// The suported [DataSource][crate::model::data_stores::DataSource] backend stores and contains
@@ -73,4 +76,5 @@ pub enum SourceOptions {
     FileDirectory(FileDirectorySource),
     #[cfg(feature = "trino")]
     Trino(TrinoSource),
+    FlightSQL(FlightSQLSource),
 }

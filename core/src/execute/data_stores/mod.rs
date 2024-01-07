@@ -1,5 +1,6 @@
 #[cfg(feature = "datafusion")]
 pub mod file_directory;
+pub mod flight_sql;
 #[cfg(feature = "trino")]
 pub mod trino;
 
@@ -29,6 +30,7 @@ use crate::model::query::Query;
 
 #[cfg(feature = "datafusion")]
 use self::file_directory::FileDirectoryRunner;
+use self::flight_sql::FlightSQLRunner;
 #[cfg(feature = "trino")]
 use self::trino::TrinoRunner;
 
@@ -94,6 +96,9 @@ pub async fn try_connect(
         (ConnectionOptions::Trino(con_opts), SourceOptions::Trino(source_opts)) => {
             Ok(Box::new(TrinoRunner::try_from((con_opts, source_opts))?))
         }
+        (ConnectionOptions::FlightSQL(con_opts), SourceOptions::FlightSQL(source_opts)) => Ok(
+            Box::new(FlightSQLRunner::try_from((con_opts, source_opts))?),
+        ),
         _ => Err(MeshError::InvalidQuery(format!(
             "Invalid or unsupported combination of \
                         DataConnection options and DataSource options: {}, {}",

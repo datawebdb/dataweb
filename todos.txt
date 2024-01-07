@@ -1,0 +1,58 @@
+MVP Demo:
+1. Set up master org relay with multiple datasets and models, trino cluster
+2. Set up two sub org relays connected only to master
+3. Set up one tiny "field" sub-sub relay with datafusion as query engine
+4. Query via any of the nodes and fetch the same data
+5. Access control via PKI -> allow and deny statements based on at least root PKI and user id
+
+
+TODOs:
+- [] FlightSQL QueryRunner that suports SQL and substrait
+- [] migrate source subtitutions to 1 entity only
+- [] k8s deployment
+- [x] Prevent error when submitting query for Information for a DataSource which does not grant access to it
+- [x] DataFusion TableProvider for a Relay
+- [x] remove info_type
+- [x] remove value substitutions
+- [x] Update unit tests and validate table level transforms
+- [x] Entity <-> Source and Entity <-> Remote Entity, table level transformsation support
+- [x] compilation features
+- [x] Synchronous flightSQL interface
+- [x] Adapt flight interface to return one endpoint per local task
+- [x] Refactor and clean up code duplication between REST and flight servers
+- [x] doc pass (cargo doc?)
+- [x] unit tests
+- [x] Fully dockerized integration test (no local deps)
+- [x] Demonstrate an actual tpch query using the pyarrow client
+- [x] CI tests
+- [x] clippy
+- [x] Set up result manager to be able to use any ObjectStore
+- [x] Audit dependencies
+- [x] proper logging/tracing
+- [x] Add global hub to dev env
+- [x] Implment S3/azure/gcp object stores 
+- [x] Parallelize query_runner
+- [x] Implement mTLS with rust-TLS on all endpoints
+- [x] Create Basic admin (relay, dataset register) capability
+- [x] Set up basic integration test experiment 
+- [x] Verify that multi hop querying works as expected
+- [x] Fix propagation of entity-entity transformations
+- [x] Add mTLS to flight grpc
+- [x] Implement ANSI-SQL substitution based authorization/access control
+- [x] Block any explicit table names in query template (which can bypass access control otherwise)
+- [x] limit charactars that can be used in left and right capture fields
+- [x] Get truly self contained single binary deployment in memory queue
+- [x] Implement JSON/parquet datafusion runner 
+- [x] Implement trino runner
+- [x] Fix cyclical query explosion issue
+- [x] Convert to messagepack from JSON
+- [x] Implement/design remote taskings and result fetching via push to FlightServer
+- [x] Convert query processing to streaming vs. fully buffering in memory
+- [x] Consider query runners return RecordBatchStream rather than ValueStream via Flight
+
+Known Issues/Potential Snags:
+- Remote tasks need to be able to recieve an arbitrary number of flight streams from an arbitrary number of sources...
+perhaps relays should report expected task counts in a "discovery" phase prior to execution. In any case, we cannot be
+100% sure we have ever recieved all flight streams.
+- Will need to improve circular topology resolution logic to account for the case different peer relays
+include different sets of mappings. Any new local tasks should be executed even if we have seen a given origin id before

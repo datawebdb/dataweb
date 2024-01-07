@@ -1,0 +1,52 @@
+name: csv_tpch
+connection_options: !FileDirectory
+  object_store_type: LocalFileSystem
+  url: local://
+data_sources:
+  - name: csv_tpch
+    source_sql: select *, extendedprice_csv/quantity_csv as unitprice, tax_csv*extendedprice_csv as tax_amount  from csv_tpch
+    source_options: !FileDirectory
+      prefix: /deploy/development/na_us_data_relay
+      file_type: CSV
+    fields:
+      - name: tax_amount
+        path: tax_amount
+      - name: unitprice
+        path: unitprice
+      - name: linenumber
+        path: linenumber_csv
+      - name: partkey
+        path: partkey_csv
+      - name: suppkey
+        path: suppkey_csv
+      - name: orderkey
+        path: orderkey_csv
+      - name: quantity
+        path: quantity_csv
+      - name: extendedprice
+        path: extendedprice_csv
+      - name: discount
+        path: discount_csv
+      - name: tax
+        path: tax_csv
+      - name: returnflag
+        path: returnflag
+      - name: linestatus
+        path: linestatus
+      - name: shipdate
+        path: shipdate
+    default_permission:
+      allowed_columns:
+        - tax_amount
+        - unitprice
+        - linenumber_csv
+        - partkey_csv
+        - suppkey_csv
+        - quantity_csv
+        - extendedprice_csv
+        - tax_csv
+        - discount_csv
+        - linestatus
+        - returnflag
+        - shipdate
+      allowed_rows: returnflag='N'

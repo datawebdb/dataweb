@@ -1,0 +1,20 @@
+[package]
+name = "single_binary_deployment"
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flight_server = {path="../flight_server"}
+rest_server = {path="../rest_server"}
+query_runner = {path="../query_runner"}
+mesh = {path="../core"}
+tokio = {version = "1.33.0", features=["full"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
+[features]
+default=[]
+rabbitmq=["mesh/rabbitmq"]

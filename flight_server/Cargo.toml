@@ -1,0 +1,35 @@
+[package]
+name = "flight_server"
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "flight_server_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flight_server"
+path = "src/bin.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mesh = {path = "../core"}
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
+arrow-schema = { workspace = true }
+datafusion = {workspace = true}
+async-trait = {workspace = true}
+futures = "0.3"
+tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync", "parking_lot"] }
+tonic = "0.10.2"
+diesel-async = { version="0.4.1", features = ["postgres", "bb8"] }
+uuid = {version ="1.5.0", features=["serde"] }
+tracing-subscriber = {workspace = true}
+tracing = {workspace = true}
+serde.workspace = true
+serde_json.workspace = true
+rustls = "0.21.9"
+rustls-pemfile = "1.0.4"
+arrow-cast = "47.0.0"

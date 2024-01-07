@@ -1,0 +1,38 @@
+entity_name: lineitem
+mappings:
+  - data_con_name: trino_tpch
+    source_mappings:
+    - data_source_name: tpch.sf1.lineitem
+      field_mappings:
+        - field: linenumber
+          info: linenumber
+        - field: partkey
+          info: partkey
+        - field: suppkey
+          info: suppkey
+        - field: orderkey
+          info: orderkey
+        - field: quantity
+          info: quantity
+        - field: extendedprice
+          info: extendedprice
+        - field: discount
+          info: discount
+        - field: tax
+          info: tax
+          transformation:
+            other_to_local_info: "{v} / .05 - 1"
+            local_info_to_other: "({v} + 1) * .05"
+            replace_from: "{v}"
+        - field: commitdate
+          info: commitdate
+        - field: receiptdate
+          info: receiptdate
+        - field: returnflag
+          info: returnflag
+        - field: linestatus
+          info: linestatus
+        - field: shipdate
+          info: shipdate
+          
+      

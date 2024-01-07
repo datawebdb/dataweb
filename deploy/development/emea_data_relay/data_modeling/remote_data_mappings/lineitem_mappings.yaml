@@ -1,0 +1,64 @@
+entity_name: lineitem
+mappings:
+  - relay_name: global_data_relay
+    remote_entity_name: lineitem
+    relay_mappings:
+      - local_info: linenumber
+        info_mapped_name: linenumber
+      - local_info: partkey
+        info_mapped_name: partkey
+      - local_info: suppkey
+        info_mapped_name: suppkey
+      - local_info: orderkey
+        info_mapped_name: orderkey
+      - local_info: quantity
+        info_mapped_name: quantity
+      - local_info: extendedprice
+        info_mapped_name: extendedprice
+      - local_info: discount
+        info_mapped_name: discount
+      - local_info: tax
+        info_mapped_name: tax
+      - local_info: commitdate
+        info_mapped_name: commitdate
+      - local_info: receiptdate
+        info_mapped_name: receiptdate
+      - local_info: returnflag
+        info_mapped_name: returnflag
+      - local_info: linestatus
+        info_mapped_name: linestatus
+      - local_info: shipdate
+        info_mapped_name: shipdate
+  - relay_name: apac_data_relay
+    remote_entity_name: lineitem
+    relay_mappings:
+      - local_info: linenumber
+        info_mapped_name: linenumber
+      - local_info: partkey
+        info_mapped_name: partkey
+      - local_info: suppkey
+        info_mapped_name: suppkey
+      - local_info: orderkey
+        info_mapped_name: orderkey
+      - local_info: quantity
+        info_mapped_name: quantity
+      - local_info: extendedprice
+        info_mapped_name: extendedprice
+      - local_info: discount
+        info_mapped_name: discount
+      - local_info: tax
+        info_mapped_name: tax
+        transformation:
+          other_to_local_info: "({v} + 1) * .05"
+          local_info_to_other: "{v} / .05 - 1"
+          replace_from: "{v}"
+      - local_info: commitdate
+        info_mapped_name: commitdate
+      - local_info: receiptdate
+        info_mapped_name: receiptdate
+      - local_info: returnflag
+        info_mapped_name: returnflag
+      - local_info: linestatus
+        info_mapped_name: linestatus
+      - local_info: shipdate
+        info_mapped_name: shipdate

@@ -1,0 +1,18 @@
+- x509_cert_file: users/client_cert_all_access.pem
+  permissions:
+    - data_con_name: trino_tpch
+      source_permissions:
+        - data_source_name: tpch.sf1.lineitem
+          allowed_columns:
+            - linenumber
+            - partkey
+            - suppkey
+            - orderkey
+            - quantity
+            - extendedprice
+            - discount
+            - tax
+            - commitdate
+            - receiptdate
+          allowed_rows: true
+- x509_cert_file: users/client_cert_default_access.pem

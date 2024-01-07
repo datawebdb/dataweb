@@ -1,0 +1,20 @@
+name: orders
+information:
+  - name: orderkey
+    arrow_dtype: Int64
+  - name: custkey
+    arrow_dtype: Int64
+  - name: orderstatus
+    arrow_dtype: Utf8
+  - name: totalprice
+    arrow_dtype: Float64
+  - name: orderdate
+    arrow_dtype: Date32
+  - name: orderpriority
+    arrow_dtype: Utf8
+  - name: clerk
+    arrow_dtype: Utf8
+  - name: shippriority
+    arrow_dtype: Int64
+  - name: comment
+    arrow_dtype: Utf8

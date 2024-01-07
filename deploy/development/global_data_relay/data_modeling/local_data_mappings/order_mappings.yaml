@@ -1,0 +1,24 @@
+entity_name: orders
+mappings:
+  - data_con_name: trino_tpch
+    source_mappings:
+    - data_source_name: tpch.sf1.orders
+      field_mappings:
+        - field: orderkey
+          info: orderkey
+        - field: custkey
+          info: custkey
+        - field: orderstatus
+          info: orderstatus
+        - field: totalprice
+          info: totalprice
+        - field: orderdate
+          info: orderdate
+        - field: orderpriority
+          info: orderpriority
+        - field: clerk
+          info: clerk
+        - field: shippriority
+          info: shippriority
+        - field: comment
+          info: comment

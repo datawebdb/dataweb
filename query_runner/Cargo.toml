@@ -1,0 +1,32 @@
+[package]
+name = "query_runner"
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "query_runner_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "query_runner"
+path = "src/bin.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mesh = {path = "../core"}
+tokio = {version = "1.33.0", features=["full"] }
+diesel-async = { version="0.4.1", features = ["postgres", "bb8"] }
+serde_json = "1.0.107"
+uuid = {version ="1.5.0", features=["serde"] }
+datafusion = "32.0.0"
+reqwest = {version="0.11.22", features=["json", "rustls-tls"], default-features=false}
+rustls-pemfile = "1.0.4"
+tracing-subscriber = {workspace = true}
+tracing = {workspace = true}
+
+
+
+
+

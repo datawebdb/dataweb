@@ -1,0 +1,31 @@
+name: lineitem
+information:
+  - name: unitprice
+    arrow_dtype: Null
+  - name: linenumber
+    arrow_dtype: Null
+  - name: partkey
+    arrow_dtype: Null
+  - name: suppkey
+    arrow_dtype: Null
+  - name: orderkey
+    arrow_dtype: Null
+  - name: quantity
+    arrow_dtype: Null
+  - name: extendedprice
+    arrow_dtype: Null
+  - name: discount
+    arrow_dtype: Null
+  - name: tax
+    arrow_dtype: Null
+  - name: commitdate
+    arrow_dtype: Null
+  - name: receiptdate
+    arrow_dtype: Null
+  - name: returnflag
+    arrow_dtype: Null
+  - name: linestatus
+    arrow_dtype: Null
+  - name: shipdate
+    arrow_dtype: Null
+

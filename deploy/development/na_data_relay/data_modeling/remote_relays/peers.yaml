@@ -1,0 +1,12 @@
+- name: global_data_relay
+  rest_endpoint: "https://localhost:8443"
+  flight_endpoint: "https://localhost:50051"
+  x509_cert_file: ./deploy/development/global_data_relay/client_cert.pem
+- name: na_us_data_relay
+  rest_endpoint: "https://localhost:8446"
+  flight_endpoint: "https://localhost:50054"
+  x509_cert_file: ./deploy/development/na_us_data_relay/client_cert.pem
+- name: na_data_relay
+  rest_endpoint: "https://localhost:8447"
+  flight_endpoint: "https://localhost:50055"
+  x509_cert_file: ./deploy/development/na_data_relay/client_cert.pem

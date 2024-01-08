@@ -2,7 +2,7 @@
   permissions:
     - data_con_name: trino_tpch
       source_permissions:
-        - data_source_name: tpch.sf1.lineitem
+        - data_source_name: tpch.tiny.lineitem
           allowed_columns:
             - linenumber
             - partkey

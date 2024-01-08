@@ -160,10 +160,15 @@ jobs:
           mkcert -install
       - name: Deploy Dev Network
         run: |
-          ls -lhR
-          env
           mkdir results
           ./deploy/build_and_deploy.sh docker
           sleep 3
-      - name: Run pytest
-        run: pytest
+      - name: Run pytest and WebEngine tests
+        run: | 
+          chmod 777 client_cert_all_access.pem
+          chmod 777 client_key_all_access.pem
+          chmod 777 client_cert_default_access.pem
+          chmod 777 client_key_default_access.pem
+          chmod 777 cacert.pem
+          docker run --network host -v $PWD:$PWD -w=$PWD webengine
+          pytest

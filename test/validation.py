@@ -33,12 +33,12 @@ def validate_tpch_q1(df):
     assert n_sources==6, f'Tpch Q1 Fail: expected data from 6 sources found {n_sources}'
 
     global_order_count = df.count_order.sum()
-    assert global_order_count==14796143, f'Expected global order count of 14796143, got {global_order_count}'
+    assert global_order_count==147648, f'Expected global order count of 147648, got {global_order_count}'
 
     global_quantity_count = (df.avg_qty * df.count_order).sum()
     global_weighted_avg_qty = global_quantity_count / global_order_count
 
-    assert global_weighted_avg_qty==25.502415122643786, f'Expected global_weighted_avg_qty of 25.502415122643786, got {global_weighted_avg_qty}'
+    assert global_weighted_avg_qty==25.4589361183355, f'Expected global_weighted_avg_qty of 25.4589361183355, got {global_weighted_avg_qty}'
 
 def validate_tpch_q1_all_access(df):
     newrows = len(df[df.returnflag!='N'])
@@ -51,9 +51,9 @@ def validate_tpch_q1_all_access(df):
     assert n_sources==6, f'Tpch Q1 Fail: expected data from 6 sources found {n_sources}'
 
     global_order_count = df.count_order.sum()
-    assert global_order_count==29582959, f'Expected global order count of 29582959, got {global_order_count}'
+    assert global_order_count==296539, f'Expected global order count of 296539, got {global_order_count}'
 
     global_quantity_count = (df.avg_qty * df.count_order).sum()
     global_weighted_avg_qty = global_quantity_count / global_order_count
 
-    assert global_weighted_avg_qty==25.50815501586572, f'Expected global_weighted_avg_qty of 25.50815501586572, got {global_weighted_avg_qty}'
+    assert global_weighted_avg_qty==25.5228115020284, f'Expected global_weighted_avg_qty of 25.5228115020284, got {global_weighted_avg_qty}'

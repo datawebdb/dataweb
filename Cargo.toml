@@ -5,7 +5,8 @@ members = [
     "rest_server",
     "query_runner",
     "flight_server",
-    "single_binary_deployment"
+    "single_binary_deployment",
+    "webengine"
 ]
 resolver = "2"
 

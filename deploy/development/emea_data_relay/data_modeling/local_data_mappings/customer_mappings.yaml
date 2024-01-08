@@ -2,7 +2,7 @@ entity_name: customer
 mappings:
   - data_con_name: trino_tpch
     source_mappings:
-    - data_source_name: tpch.sf1.customer
+    - data_source_name: tpch.tiny.customer
       field_mappings:
         - field: custkey
           info: custkey

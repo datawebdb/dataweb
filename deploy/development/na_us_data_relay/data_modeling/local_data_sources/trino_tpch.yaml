@@ -6,8 +6,8 @@ connection_options: !Trino
   port: 8080
   secure: false
 data_sources:
-  - name: tpch.sf1.lineitem
-    source_sql: select *, extendedprice/quantity as unitprice, tax*extendedprice as tax_amount from tpch.sf1.lineitem
+  - name: tpch.tiny.lineitem
+    source_sql: select *, extendedprice/quantity as unitprice, tax*extendedprice as tax_amount from tpch.tiny.lineitem
     source_options: !Trino
     fields:
       - name: tax_amount
@@ -56,8 +56,8 @@ data_sources:
         - returnflag
         - shipdate
       allowed_rows: returnflag='N'
-  - name: tpch.sf1.customer
-    source_sql: tpch.sf1.customer
+  - name: tpch.tiny.customer
+    source_sql: tpch.tiny.customer
     source_options: !Trino
     fields:
         - name: custkey
@@ -85,8 +85,8 @@ data_sources:
         - mktsegment
         - comment
       allowed_rows: acctbal>0
-  - name: tpch.sf1.orders
-    source_sql: tpch.sf1.orders
+  - name: tpch.tiny.orders
+    source_sql: tpch.tiny.orders
     source_options: !Trino
     fields:
       - name: orderkey

@@ -2,7 +2,7 @@ entity_name: orders
 mappings:
   - data_con_name: trino_tpch
     source_mappings:
-    - data_source_name: tpch.sf1.orders
+    - data_source_name: tpch.tiny.orders
       field_mappings:
         - field: orderkey
           info: orderkey

@@ -76,8 +76,8 @@ connection_options: !Trino
   port: 8080
   secure: false
 data_sources:
-  - name: tpch.sf1.customer
-    source_sql: tpch.sf1.customer
+  - name: tpch.tiny.customer
+    source_sql: tpch.tiny.customer
     source_options: !Trino
     fields:
       - name: custkey
@@ -114,7 +114,7 @@ entity_name: customer
 mappings:
   - data_con_name: trino_tpch
     source_mappings:
-    - data_source_name: tpch.sf1.customer
+    - data_source_name: tpch.tiny.customer
       field_mappings:
         - field: custkey
           info: customerkey

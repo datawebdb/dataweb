@@ -1,26 +1,44 @@
-# DataWeb Relay
+# DataWeb
 
-DataWeb Relay enables connecting siloed data systems with minimal central coordination and the strictest data security standards. A network of connected Relays forms a unified DataWeb, which can be queried as though it were a single central datastore. This enables organizations to horizontally scale Data Engineering teams, while still enabling Data Analysts to easily discover and query all relevant data, all while keeping sensitive data highly compartmentalized. 
+The goal of DataWeb is to enable virtual integration of siloed data systems with minimal central coordination. This means that data remains physically siloed and all engineering teams participating in the DataWeb retain autonomy. There are no enterprise data models, no strict data contracts, no massive data catalogs to manually sift through, and no bulk physical movements of data. Nontheless, the DataWeb presents a unified view of all data in the web which can be queried using locally scoped data models.
+
+### Architecture
+
+A Relay is a node in the DataWeb, which has its own independent set of logical data models. Each Relay is connected to physical data sources and remote logical data sources (i.e. other Relays in the Web). 
+
+<img src='/images/relay.png' width='600'>
+
+Relays are responsible for propagating every logical query recieved, maintaining a set of transformations needed to transform data on the fly into the original requestor's expected data model. The DataWeb itself is not responsible for aggregations or joins which span multiple data sources. Instead, the requestor (which itself can be an execution engine) is responsible for final aggregations/joins on the returned data streams. 
+
+<img src='/images/propagate.png' width='700'>
+
+The original requestor is given a list of endpoints from where it can retrieve all relevant streams of data. This time, it can request directly to any Relay with data, rather than propagating the request indirectly through a single Relay.
+
+<img src='/images/integrate.png' width='700'>
+
+While the Relay network can be arranged in any topology, the expected use case is for the topology to match the org chart of the organization creating the web. Consider the following structure of an organization organized based on regions of the world:
+
+<img src='/images/org_chart.png' width='350'>
+
+Each part of the organization only needs to concern itself with its immediate parent and children. I.e. the US focused part of the org only needs to maintain its own data models and mappings to the North America wide level of the org. Notably, horizontal communication within the organization is not required to construct the web. This fact is intentional in the design of DataWeb, given the difficulty in enforcing collaboration in horizontal slices of large organizations, see [stovepipes](https://en.wikipedia.org./wiki/Stovepipe_(organisation)).
 
 ### Data Security + Compartmentalization
 
-Each Relay operates autonomously with **zero trust** for any other Relay or User in the network. Every connection is authenticated and encrypted via mTLS and each Relay can control which other Relays and Users can access which Columns and Rows of any DataSource it exposes to the network. Authorization controls can be expressed as arbitrary SQL statements, which are aware of who is requesting the data, what part of the organization they are part of, and more. No single server or user in the network (even any sever admin) must have access to all or even a plurality of the data in the organization. This limits the blast radius in the event of even the most serious compromise or insider threat scenario.
+Each Relay operates autonomously with zero trust for any other Relay or User in the network. Every connection is authenticated and encrypted via mTLS. Access controls are expressed as arbitrary SQL statements, which enables fine grained control over which columns and rows are exposed to which parts of the organization and even which specific users. No single server or user in the network (even any sever admin) must have access to all data in the web. This limits the blast radius in the event of even the most serious compromise or insider threat scenario.
 
-This security model makes DataWeb Relay appropriate for controling access to the most sensitive data within organziations. It also means DataWeb Relay is appropriate for connecting data accross organizations, where there is no common central data owner. Every analyst can securely and efficiently query every source of data throughout the Web to which they have been granted access, but **nothing more**. Eliminating the trade off between data security, compartmentalization, and efficiently exploiting petabyte to exabyte scale analytical data is the key objective of this project.
+This security model makes DataWeb Relay appropriate for controling access to the most sensitive data within organziations. It also means DataWeb is appropriate for integrating data accross multiple organizations, where there is no common central data owner. Every data consumer can securely and efficiently query every source of data throughout the Web to which they have been granted access, but **nothing more**. Eliminating the trade off between compartmentalization and efficiently analyzing petabyte scale analytical data is a key objective of this project.
 
 ### Open Source Composable Standards
 
-The DataWeb enables efficient, high bandwidth access to compartmented analytical data via the open composable standards of [Apache Arrow](https://arrow.apache.org/). In fact, DataWeb Relay is nothing more than a highly customized and hardened [Apache Arrow Flight](https://arrow.apache.org/blog/2019/10/13/introducing-arrow-flight/) server. Relays communicate via standard Flight gRPC calls, such as get_flight_info and do_get. This enables Relays to efficiently exchange extremely large amounts of data over the network efficiently. 
+The DataWeb enables efficient, high bandwidth access to siloed analytical data via the open composable standards of [Apache Arrow](https://arrow.apache.org/). In fact, DataWeb Relays are nothing more than a custom [Apache Arrow Flight](https://arrow.apache.org/blog/2019/10/13/introducing-arrow-flight/) server. This enables Relays to efficiently exchange extremely large amounts of data over the network efficiently. 
 
-While the Relays themselves communicate via a custom query templating language, [DataWeb Engine](https://github.com/devinjdangelo/DataWebEngine) implements a DataFusion table provider and FlightSQL compliant API for queries over the entire DataWeb. This enables analysts to use familiar ANSI-SQL queries as though they are querying a single ExecutionEngine, when in fact they may querying hundreds to thousands of scattered datasources throughout a complex mesh network of DataWeb Relays.
+While the Relays internally communicate via a custom query templating language, [DataWeb Engine](/DataWebEngine) implements a DataFusion table provider for queries over the entire DataWeb. This enables data consumers to use familiar SQL queries as though they are querying a single Execution Engine, when in fact they may be querying hundreds to thousands of scattered datasources throughout a complex network of DataWeb Relays.
 
-Each Relay can communicate with the DataSources it controls via FlightSQL as well. This enables integrating any FlightSQL compliant execution engine into the DataWeb seemlessly and with no special development or plug-ins required.
+Each Relay can communicate with the DataSources it controls via FlightSQL. This enables integrating any FlightSQL compliant execution engine into the DataWeb seemlessly and with no special development or plug-ins required.
 
 ### Extend the Web to the Edge
 
-Implemented 100% in Rust, DataWeb Relay can be statically compiled down to a single binary just 53MB in size. A Relay is resource efficient enough to be deployed at the edge, near the collection source of data. This decreases the time it takes to make data available enterprise wide to essentially zero. For example, a Relay could be deployed directly on an IoT device which stores CSV files on its local storage. This Relay can be configured with an embeded DataFusion query engine to expose this data to the web. As soon as additional data is saved to local storage, it immediately becomes available throughout the Web.
-
-Data Analysts do not need to be aware of or take any manual action to discover new data in the web. If new data is added to the web which is relevant to their query, it will automatically be discovered by the Relay network and added to the results. This eliminates the need for analysts to manually search massive data catalogs and decide which data is relevant themselves.
+Implemented 100% in Rust, DataWeb Relay can be statically compiled down to a single binary approximately 50MB in size. A Relay is resource efficient enough to be deployed at the edge, near the collection source of data. This decreases the time it takes to make data available enterprise wide to essentially zero. For example, a Relay could be deployed directly on an IoT device which stores CSV files on its local storage. This Relay can be configured with an embeded DataFusion query engine to expose this data to the web. As soon as additional data is saved to local storage, it immediately becomes available throughout the Web.
 
 ### Configuration
 
@@ -89,7 +107,7 @@ data_sources:
       allowed_rows: acctbal>0
 ```
 
-Note that the **default permission** is the data which any user which authenticates with a x509 certificate from a trusted CA is granted access to. If you are using a public CA, then this would be **public** data. If you are using a private CA, then this would be the data exposed to anyone who may obtain a cert within that organization.
+Note that the **default permission** is the data which any user which authenticates with a x509 certificate from a trusted CA is granted access to. If you are using a public CA, then this would be **public** data. If you are using a private CA, then this would be the data exposed to anyone who may obtain a certificate within that organization.
 
 ```yaml
 entity_name: customer
@@ -116,7 +134,7 @@ mappings:
           info: comment
 ```
 
-This completes the mapping from the abstract Customer entity to a queryable local data source. A single Entity can be mapped to an arbitrarily large number of local data sources. Each local data soruce can be arbitrarily transparently transformed to conform to the Entity's schema by modifying the source_sql field to any SQL query. 
+This completes the mapping from the abstract Customer entity to a queryable local data source. A single Entity can be mapped to an arbitrarily large number of local data sources. Each local data soruce can be arbitrarily transformed to conform to the Entity's schema by modifying the source_sql field to any SQL query. 
 
 Where the Relay becomes very powerful is by connecting it to other Peer Relays. Each peer Relay must be declared and named.
 
@@ -153,7 +171,7 @@ mappings:
         info_mapped_name: comment
 ```
 
-Here we see a few of the fields are named differently, but are otherwise the same. These differences are invisible to end User's, who only need to express queries in terms of a single data model. It is the responsible of the Relay network to transform queries for local DataSources and remote Relays.
+Here we see a few of the fields are named differently, but are otherwise the same. These differences are invisible to end User's, who only need to express queries in terms of a single local data model. It is the responsibility of the Relay network to transform queries for local data sources and remote relays.
 
 ### Development and Testing
 
@@ -169,10 +187,16 @@ Integration testing is important and complex, since much of the behavior we want
 deploy/build_and_deploy.sh
 ```
 
+This script depends on a local installation of docker and (mkcert)[https://github.com/FiloSottile/mkcert].
+
 Pyarrow based low-level integration tests can be executed via:
 
 ```
 pytest
 ```
 
-Additional more complex end-to-end tests can be run by using the [DataWeb Engine](https://github.com/devinjdangelo/DataWebEngine). 
+Higher level integration tests can be executed via:
+
+```
+cargo run -p data_web_engine
+```

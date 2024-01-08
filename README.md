@@ -1,6 +1,6 @@
 # DataWeb
 
-The goal of DataWeb is to enable virtual integration of siloed data systems with minimal central coordination. This means that data remains physically siloed and all engineering teams participating in the DataWeb retain autonomy. There are no enterprise data models, no strict data contracts, no massive data catalogs to manually sift through, and no bulk physical movements of data. Nontheless, the DataWeb presents a unified view of all data in the web which can be queried using locally scoped data models.
+DataWeb enables virtual integration of siloed data systems with minimal central coordination. This means that data remains physically siloed and all engineering teams participating in the DataWeb retain autonomy. There are no enterprise data models, no strict data contracts, no massive data catalogs to manually sift through, and no bulk physical movements of data. Nontheless, the DataWeb presents a unified view of all data in the web which can be queried using locally scoped data models.
 
 ### Architecture
 
@@ -8,15 +8,15 @@ A Relay is a node in the DataWeb, which has its own independent set of logical d
 
 <img src='/images/relay.png' width='600'>
 
-Relays are responsible for propagating every logical query recieved, maintaining a set of transformations needed to transform data on the fly into the original requestor's expected data model. The DataWeb itself is not responsible for aggregations or joins which span multiple data sources. Instead, the requestor (which itself can be an execution engine) is responsible for final aggregations/joins on the returned data streams. 
+The first step in querying the DataWeb is for the original requestor to send a query to a Relay specified in terms of that Relay's logical data models. This triggers a query mapping and propagation process, whereby every Relay in the network identifies all relevant data in the Web and computes the necessary transformations to convert all data to the original data model.
 
 <img src='/images/propagate.png' width='700'>
 
-The original requestor is given a list of endpoints from where it can retrieve all relevant streams of data. This time, it can request directly to any Relay with data, rather than propagating the request indirectly through a single Relay.
+At the end of the first step, the original requestor is returned a list of endpoints from which it can retrieve all relevant streams of data. This time, it can send each request directly to the relevant Relay, rather than propagating the request indirectly through a single Relay. In this example query, three relays return a partial sum called "revenue". The execution engine then computes the final sum and returns to the end user the grand total "revenue". 
 
 <img src='/images/integrate.png' width='700'>
 
-While the Relay network can be arranged in any topology, the expected use case is for the topology to match the org chart of the organization creating the web. Consider the following structure of an organization organized based on regions of the world:
+While the Relay network can be arranged in any topology, it is recommended to mirror the org chart of the organization creating the web. Consider the following structure of an organization organized based on regions of the world:
 
 <img src='/images/org_chart.png' width='350'>
 
@@ -34,7 +34,19 @@ The DataWeb enables efficient, high bandwidth access to siloed analytical data v
 
 While the Relays internally communicate via a custom query templating language, [DataWeb Engine](/webengine) implements a DataFusion table provider for queries over the entire DataWeb. This enables data consumers to use familiar SQL queries as though they are querying a single Execution Engine, when in fact they may be querying hundreds to thousands of scattered datasources throughout a complex network of DataWeb Relays.
 
-Each Relay can communicate with the DataSources it controls via FlightSQL. This enables integrating any FlightSQL compliant execution engine into the DataWeb seemlessly and with no special development or plug-ins required.
+### Supported Data Sources
+
+There are three ways to connect data to the web.
+
+* Remote [FlightSQL](https://arrow.apache.org/docs/format/FlightSql.html) Endpoints
+* Remote [Trino](https://trino.io/) Clusters
+* Embedded [DataFusion](https://arrow.apache.org/datafusion/)
+
+Any external execution engine which implements the FlightSQL protocol can be connected to the web without requiring any special connectors. Since the DataWeb uses the Arrow memory format to communicate internally, FlightSQL is also the most performant protocol for connecting data to the web. 
+
+Given the prevalance of Trino and its large number of supported [connectors](https://trino.io/docs/current/connector.html), Relays contain special logic to enable querying Trino and converting the returned data streams to Arrow memory format. This is the only planned custom integration and FlightSQL should be the strongly preferred method for integrating any data into the web.
+
+The final method of integrating data into the web is for the Relay to act directly as the execution engine by embedding DataFusion. Currently, this allows adding any collection of Parquet, CSV, or JSON files stored locally or in AWS, GCP, or Azure Object Storage.
 
 ### Extend the Web to the Edge
 
@@ -42,7 +54,7 @@ Implemented 100% in Rust, DataWeb Relay can be statically compiled down to a sin
 
 ### Configuration
 
-Each Relay defines virtual Arrow Schemas called an "Entity". Using the included relayctl cli tool, these and all other configurations can be defined via a declarative YAML files. A simple example follows, but see also a more complex Web defined for integration testing purposes in [this folder](deploy/development).
+Each Relay defines virtual Arrow Schemas called an "Entity". Using the included relayctl cli tool, these and all other configurations can be defined via declarative YAML files. A simple example follows, but see also a more complex Web defined for integration testing purposes in [this folder](deploy/development).
 
 ```yaml
 name: customer
@@ -172,6 +184,18 @@ mappings:
 ```
 
 Here we see a few of the fields are named differently, but are otherwise the same. These differences are invisible to end User's, who only need to express queries in terms of a single local data model. It is the responsibility of the Relay network to transform queries for local data sources and remote relays.
+
+Once all YAML files are defined, a Relay can be configured with them by executing:
+
+```bash
+relayctl \
+--entity-configs path/to/local_entities \
+--local-data-configs path/to/local_data_sources \
+--local-mapping-configs path/to/local_data_mappings \
+--remote-relay-configs path/to/remote_relays \
+--remote-mapping-configs path/to/remote_data_mappings \
+--user-mapping-configs path/to/users
+```
 
 ### Development and Testing
 

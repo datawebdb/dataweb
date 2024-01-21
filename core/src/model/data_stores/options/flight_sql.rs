@@ -8,7 +8,6 @@ pub struct FlightSQLSource {}
 pub struct FlightSqlConnection {
     pub endpoint: String,
     pub auth: FlightSQLAuth,
-    pub supports_substrait: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

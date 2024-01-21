@@ -34,6 +34,19 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    let df = ctx
+        .sql("select name from customer where name='hello from ballista!'")
+        .await?;
+    let expected = [
+        "+----------------------+",
+        "| name                 |",
+        "+----------------------+",
+        "| hello from ballista! |",
+        "+----------------------+",
+    ];
+
+    assert_batches_eq!(expected, &df.clone().collect().await?);
+
     // Casting to BIGINT with a reasonable number of signficant digits to avoid errors due to
     // slight floating point rounding differences.
     let tpchq1 = "select

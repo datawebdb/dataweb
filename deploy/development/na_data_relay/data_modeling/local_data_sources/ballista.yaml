@@ -1,0 +1,17 @@
+name: ballista
+connection_options: !FlightSQL
+  endpoint: 'http://127.0.0.1:50090'
+  auth: !Basic
+    username: admin
+    password: BALLISTA_AUTH_PASS
+data_sources:
+  - name: hello_world
+    source_sql: select 'hello from ballista!' as hello_world union all select 'secret!' as hello_world
+    source_options: !FlightSQL
+    fields:
+      - name: hello_world
+        path: hello_world
+    default_permission:
+      allowed_columns:
+        - hello_world
+      allowed_rows: hello_world='hello from ballista!'

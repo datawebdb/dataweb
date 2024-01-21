@@ -15,6 +15,7 @@ use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{StreamExt, TryStreamExt};
 use tonic::transport::{Certificate, ClientTlsConfig, Endpoint, Identity};
+use tracing::debug;
 
 use crate::error::{MeshError, Result};
 use crate::model::data_stores::options::flight_sql::{
@@ -91,17 +92,16 @@ impl TryFrom<(FlightSqlConnection, FlightSQLSource)> for FlightSQLRunner {
 #[async_trait]
 impl QueryRunner for FlightSQLRunner {
     async fn execute_stream(&mut self, query: Query) -> Result<SendableRecordBatchStream> {
+        debug!("Executing {query:?} on FlightSQLRunner");
+        debug!("Connecting to FlightSQL endpoint {:?}", self.endpoint);
         let channel = self.endpoint.connect().await?;
         let mut client = FlightSqlServiceClient::new(channel);
 
         if let Some(auth) = &self.basic_auth {
-            let token = client
+            debug!("Handshaking with basic auth...");
+            client
                 .handshake(auth.username.as_str(), auth.password.as_str())
                 .await?;
-            client.set_token(
-                String::from_utf8(token.to_vec())
-                    .map_err(|e| DataFusionError::External(Box::new(e)))?,
-            );
         }
 
         let mut stmt = client.prepare(query.sql, None).await?;

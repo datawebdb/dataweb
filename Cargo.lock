@@ -2916,10 +2916,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 name = "relayctl"
 version = "0.0.1"
 dependencies = [
- "arrow-array",
- "arrow-json",
  "arrow-schema",
- "async-trait",
  "clap",
  "diesel",
  "diesel-async",
@@ -2930,7 +2927,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "sqlparser 0.39.0",
  "tokio",
  "url",
  "walkdir",
@@ -3364,7 +3360,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743b4dc2cbde11890ccb254a8fc9d537fa41b36da00de2a1c5e9848c9bc42bd7"
 dependencies = [
  "log",
- "serde",
 ]
 
 [[package]]

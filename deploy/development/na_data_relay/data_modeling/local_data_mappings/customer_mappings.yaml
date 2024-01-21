@@ -20,3 +20,9 @@ mappings:
           info: mktsegment
         - field: comment
           info: comment
+  - data_con_name: ballista
+    source_mappings:
+      - data_source_name: hello_world
+        field_mappings: 
+          - field: hello_world
+            info: name

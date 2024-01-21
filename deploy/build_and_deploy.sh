@@ -8,6 +8,8 @@ docker stop na_data_relay
 docker stop na_us_data_relay
 docker stop emea_data_relay 
 docker stop apac_data_relay 
+docker stop ballista-scheduler
+docker stop ballista-executor
 docker rm global_data_relay
 docker rm na_data_relay
 docker rm na_us_data_relay
@@ -15,6 +17,8 @@ docker rm emea_data_relay
 docker rm apac_data_relay 
 docker rm postgres
 docker rm trino
+docker rm ballista-scheduler
+docker rm ballista-executor
 
 mkdir results
 
@@ -32,6 +36,10 @@ then
 else
     deploy/build_all_debug.sh
 fi
+
+docker run --name ballista-scheduler -d --network="host" ballista-scheduler --bind-port 50090
+docker run --name ballista-executor -d --network="host" \
+ballista-executor --bind-port 50091 --scheduler-host 127.0.0.1 --scheduler-port 50090
 
 # These are the server certs for hosted services
 mkcert -key-file deploy/development/global_data_relay/key.pem \

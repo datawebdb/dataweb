@@ -1,3 +1,5 @@
+**DataWeb is experimental and does not yet have a stable release. Any contributions are welcome via PRs or posting issues.**
+
 # DataWeb
 
 DataWeb enables virtual integration of siloed data systems with minimal central coordination. This means that data remains physically siloed and all engineering teams participating in the DataWeb retain autonomy. There are no enterprise data models, no strict data contracts, no massive data catalogs to manually sift through, and no bulk physical movements of data. Nonetheless, the DataWeb presents a unified view of all data in the web which can be easily queried using locally scoped data models.

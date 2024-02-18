@@ -14,6 +14,7 @@ export SERVER_KEY_FILE=${PWD}/deploy/development/global_data_relay/key.pem
 export CLIENT_CERT_FILE=${PWD}/deploy/development/global_data_relay/client_cert.pem 
 export CLIENT_KEY_FILE=${PWD}/deploy/development/global_data_relay/client_key.pem
 export MIN_PARALLELISM_PER_QUERY_WORKER=8
+export DIRECT_TLS=true
 export RUST_LOG=4
 
 docker run --network="host" \
@@ -68,6 +69,7 @@ docker run -d \
 --env SERVER_KEY_FILE \
 --env CLIENT_CERT_FILE \
 --env CLIENT_KEY_FILE \
+--env DIRECT_TLS \
 --env RUST_LOG \
 --env MIN_PARALLELISM_PER_QUERY_WORKER \
 -v ${PWD}:${PWD} \

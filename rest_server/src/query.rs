@@ -59,11 +59,13 @@ async fn get_query_results(
     pool: web::Data<DbPool>,
     result_manager: web::Data<Arc<ResultManager>>,
     local_fingerprint: web::Data<Arc<String>>,
+    client_cert_header: web::Data<Option<String>>,
     request_id: web::Path<Uuid>,
     options: web::Query<GetQueryOptions>,
     req: HttpRequest,
 ) -> Result<impl Responder> {
-    let (fingerprint, subject_dn, issuer_dn) = parse_certs_from_req(req)?;
+    let (fingerprint, subject_dn, issuer_dn) =
+        parse_certs_from_req(req, client_cert_header.as_ref())?;
 
     info!(
         "Got new query request from: subject: {}, issuer: {}, fingerprint: {}",
@@ -149,10 +151,12 @@ async fn query(
     pool: web::Data<DbPool>,
     message_options: web::Data<MessageBrokerOptions>,
     local_fingerprint: web::Data<Arc<String>>,
+    client_cert_header: web::Data<Option<String>>,
     query: web::Json<RawQueryRequest>,
     req: HttpRequest,
 ) -> Result<impl Responder> {
-    let (fingerprint, subject_dn, issuer_dn) = parse_certs_from_req(req)?;
+    let (fingerprint, subject_dn, issuer_dn) =
+        parse_certs_from_req(req, client_cert_header.as_ref())?;
     info!(
         "Got new query request from: subject: {}, issuer: {}, fingerprint: {}",
         subject_dn, issuer_dn, fingerprint

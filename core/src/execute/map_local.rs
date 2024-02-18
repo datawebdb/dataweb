@@ -22,7 +22,7 @@ pub(crate) fn map_sql(
     sql: &str,
     _con: &DataConnection,
     source: &DataSource,
-    mappings: &Vec<(Entity, Information, DataField, Mapping)>,
+    mappings: &[(Entity, Information, DataField, Mapping)],
     substitution_blocks: &SubstitutionBlocks,
     alias_mappings: &Option<ScopedOriginatorMappings>,
     permission: SourcePermission,

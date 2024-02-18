@@ -138,12 +138,6 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
         .expect("Failed to initialize result manager!"),
     );
 
-    let (_cert, config) = rustls_config(
-        env_config.ca_cert_file.as_str(),
-        env_config.server_cert_file.as_str(),
-        env_config.server_key_file.as_str(),
-    )?;
-
     let client_cert = &mut BufReader::new(
         File::open(&env_config.client_cert_file).unwrap_or_else(|_| {
             panic!("Unable to open {} with error:", env_config.client_cert_file)
@@ -167,26 +161,42 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
         None => env_config.msg_broker_opts,
     };
 
-    HttpServer::new(move || {
+    let base_server = HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(message_options.clone()))
             .app_data(web::Data::new(result_manager.clone()))
             .app_data(web::Data::new(local_relay_fingerprint.clone()))
+            .app_data(web::Data::new(env_config.client_cert_header.clone()))
             .service(query::query)
             .service(query::get_query_results)
-    })
-    .on_connect(get_client_cert)
-    .bind_rustls_021(
-        (
+    });
+
+    if env_config.direct_tls {
+        let (_cert, config) = rustls_config(
+            env_config.ca_cert_file.as_str(),
+            env_config.server_cert_file.as_str(),
+            env_config.server_key_file.as_str(),
+        )?;
+        base_server.on_connect(get_client_cert).bind_rustls_021(
+            (
+                env_config.rest_url,
+                env_config
+                    .rest_port
+                    .parse()
+                    .expect("Unable to parse REST_SERVICE_PORT as a port"),
+            ),
+            config,
+        )?
+    } else {
+        base_server.bind((
             env_config.rest_url,
             env_config
                 .rest_port
                 .parse()
                 .expect("Unable to parse REST_SERVICE_PORT as a port"),
-        ),
-        config,
-    )?
+        ))?
+    }
     .run()
     .await
 }

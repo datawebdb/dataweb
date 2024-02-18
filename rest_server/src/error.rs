@@ -10,6 +10,14 @@ pub(crate) struct RelayError {
     pub(crate) msg: String,
 }
 
+impl RelayError {
+    pub fn new(msg: &str) -> RelayError {
+        RelayError {
+            msg: msg.to_string(),
+        }
+    }
+}
+
 impl Error for RelayError {}
 
 impl fmt::Display for RelayError {

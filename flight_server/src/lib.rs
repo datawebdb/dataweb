@@ -61,14 +61,6 @@ pub async fn run() -> Result<(), MeshError> {
 
     let ca_cert = Arc::new(env_conf.read_client_cacert_pem()?);
 
-    let tls_config = ServerTlsConfig::new()
-        .client_ca_root(Certificate::from_pem(ca_cert.as_ref()))
-        .client_auth_optional(false)
-        .identity(Identity::from_pem(
-            env_conf.read_server_cert().unwrap(),
-            env_conf.read_server_key().unwrap(),
-        ));
-
     let client_cert = Arc::new(env_conf.read_client_cert()?);
     let client_key = Arc::new(env_conf.read_client_key()?);
 
@@ -82,17 +74,28 @@ pub async fn run() -> Result<(), MeshError> {
         result_manager,
         client_cert,
         client_key,
-        ca_cert,
+        ca_cert: ca_cert.clone(),
         local_fingerprint: Arc::new(fingerprint),
+        client_cert_header: env_conf.client_cert_header.clone(),
     };
     let flight_svc = FlightServiceServer::new(flight_service);
 
-    Server::builder()
-        .tls_config(tls_config)?
-        .add_service(flight_svc)
-        .serve(addr)
-        .await
-        .expect("Failed to create flight service!");
+    if env_conf.direct_tls {
+        let tls_config = ServerTlsConfig::new()
+            .client_ca_root(Certificate::from_pem(ca_cert.as_ref()))
+            .client_auth_optional(false)
+            .identity(Identity::from_pem(
+                env_conf.read_server_cert().unwrap(),
+                env_conf.read_server_key().unwrap(),
+            ));
+        Server::builder().tls_config(tls_config)?
+    } else {
+        Server::builder()
+    }
+    .add_service(flight_svc)
+    .serve(addr)
+    .await
+    .expect("Failed to create flight service!");
 
     Ok(())
 }

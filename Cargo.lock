@@ -1660,6 +1660,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "urlencoding",
  "uuid",
 ]
 
@@ -2993,6 +2994,7 @@ dependencies = [
  "sha2",
  "tracing",
  "tracing-subscriber",
+ "urlencoding",
  "uuid",
  "x509-parser",
 ]

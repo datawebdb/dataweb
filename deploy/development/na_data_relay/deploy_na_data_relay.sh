@@ -18,6 +18,7 @@ export CLIENT_KEY_FILE=${PWD}/deploy/development/na_data_relay/client_key.pem
 export RUST_BACKTRACE=0
 export MIN_PARALLELISM_PER_QUERY_WORKER=8
 export RUST_LOG=4
+export DIRECT_TLS=true
 export BALLISTA_AUTH_PASS=password
 
 echo $PWD
@@ -73,6 +74,7 @@ docker run -d \
 --env SERVER_KEY_FILE \
 --env CLIENT_CERT_FILE \
 --env CLIENT_KEY_FILE \
+--env DIRECT_TLS \
 --env RUST_LOG \
 --env MIN_PARALLELISM_PER_QUERY_WORKER \
 --env BALLISTA_AUTH_PASS \

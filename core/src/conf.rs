@@ -14,8 +14,10 @@ pub struct EnvConfigSettings {
     pub rest_port: String,
     pub flight_addr: String,
     pub ca_cert_file: String,
+    pub direct_tls: bool,
     pub server_cert_file: String,
     pub server_key_file: String,
+    pub client_cert_header: Option<String>,
     pub client_cert_file: String,
     pub client_key_file: String,
     pub msg_broker_opts: MessageBrokerOptions,
@@ -42,10 +44,32 @@ impl EnvConfigSettings {
         let flight_addr =
             env::var("FLIGHT_SERVICE_ENDPOINT").expect("FLIGHT_SERVICE_ENDPOINT must be set");
         let ca_cert_file = env::var("CA_CERT_FILE").expect("CA_CERT_FILE must be set");
-        let server_key_file = env::var("SERVER_KEY_FILE").expect("SERVER_KEY_FILE must be set");
-        let server_cert_file = env::var("SERVER_CERT_FILE").expect("SERVER_CERT_FILE must be set");
         let client_cert_file = env::var("CLIENT_CERT_FILE").expect("CLIENT_CERT_FILE must be set");
         let client_key_file = env::var("CLIENT_KEY_FILE").expect("CLIENT_KEY_FILE must be set");
+
+        let direct_tls = env::var("DIRECT_TLS")
+            .unwrap_or("false".to_string())
+            .parse::<bool>()
+            .expect("Unable to parse DIRECT_TLS configuration as boolean!");
+
+        let (server_key_file, server_cert_file, client_cert_header) = if direct_tls {
+            (
+                env::var("SERVER_KEY_FILE")
+                    .expect("SERVER_KEY_FILE must be set when DIRECT_TLS is true"),
+                env::var("SERVER_CERT_FILE")
+                    .expect("SERVER_CERT_FILE must be set when DIRECT_TLS is true"),
+                None,
+            )
+        } else {
+            (
+                "".to_string(),
+                "".to_string(),
+                Some(
+                    env::var("CLIENT_CERT_HEADER")
+                        .expect("CLIENT_CERT_HEADER must be set when DIRECT_TLS is false"),
+                ),
+            )
+        };
 
         let msg_broker_opts = serde_json::from_str(
             env::var("MSG_BROKER_OPTS")
@@ -60,8 +84,10 @@ impl EnvConfigSettings {
             rest_port,
             flight_addr,
             ca_cert_file,
+            direct_tls,
             server_cert_file,
             server_key_file,
+            client_cert_header,
             client_cert_file,
             client_key_file,
             msg_broker_opts,

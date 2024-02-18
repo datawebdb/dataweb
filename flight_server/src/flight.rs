@@ -60,9 +60,13 @@ struct FlightInfoTicket {
     task_id: Uuid,
 }
 
-/// Generic function to extract client certificate information from any [Request]
+/// Generic function to extract client certificate information from any [Request].
+/// This function relies on direct access to the client's certificate in the mTLS
+/// handshake, and so cannot be used when the Relay is behind a reverse proxy which
+/// terminates TLS. In that case have the proxy pass a header with the client's cert
+/// and use extract_certs_header function instead.
 /// See [parse_certificate] for more information about the return values.
-fn extract_certs<T>(request: &Request<T>) -> Result<(String, String, String), Status> {
+fn extract_certs_direct_tls<T>(request: &Request<T>) -> Result<(String, String, String), Status> {
     let client_certs = request.peer_certs().ok_or(Status::permission_denied(
         "Expected client cert, found none",
     ))?;
@@ -79,6 +83,46 @@ fn extract_certs<T>(request: &Request<T>) -> Result<(String, String, String), St
     Ok((fingerprint, subject_dn, issuer_dn))
 }
 
+/// Extracts client's certificate from a header. This assumes there is a trusted reverse proxy upstream
+/// which completes the mTLS handshake and forwards the validated cert. This method is only secure when
+/// the only way to connect to the Relay is via the upstream reverse proxy.
+/// See [parse_certificate] for more information about the return values.
+fn extract_certs_header<T>(
+    request: &Request<T>,
+    header: &String,
+) -> Result<(String, String, String), Status> {
+    match request.metadata().get(header) {
+        Some(value) => {
+            let inner = value
+                .to_str()
+                .map_err(|_e| Status::unauthenticated("Unable to read client cert from header"))?;
+            let decoded = urlencoding::decode(inner).map_err(|_e| {
+                Status::unauthenticated("Unable to url decode client cert from header")
+            })?;
+            let cert = Certificate::from_pem(decoded.as_ref());
+            let rustls_cert = rustls::Certificate(cert.into_inner());
+            parse_certificate(&rustls_cert).map_err(|_e| {
+                Status::permission_denied("Found client cert in header, but unable to parse")
+            })
+        }
+        None => Err(Status::unauthenticated(
+            "Unable to retrieve client certificate from header!",
+        )),
+    }
+}
+
+/// Generic function to extract client certificate information from any [Request]
+/// See [parse_certificate] for more information about the return values.
+fn extract_certs<T>(
+    request: &Request<T>,
+    client_cert_header: &Option<String>,
+) -> Result<(String, String, String), Status> {
+    match client_cert_header {
+        Some(header) => extract_certs_header(request, header),
+        None => extract_certs_direct_tls(request),
+    }
+}
+
 #[derive(Clone)]
 pub struct FlightRelay {
     pub db_pool: Pool<AsyncPgConnection>,
@@ -93,6 +137,11 @@ pub struct FlightRelay {
     /// The local Relay will propagate this value with requests forwarded to remote
     /// Relays if the local Relay is the originator.
     pub local_fingerprint: Arc<String>,
+    /// In direct_tls=false mode, the FlightRelay trusts the upstream server to pass the certificate of
+    /// the client in this header. This is only secure when the only way to connect to the Relay is via
+    /// the upstream reverse proxy which terminates TLS. In direct_tls=true mode, this is None and the Relay
+    /// directly validates the user's certificate via mTLS handshake.
+    pub client_cert_header: Option<String>,
 }
 
 impl FlightRelay {
@@ -342,7 +391,8 @@ impl FlightService for FlightRelay {
         &self,
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, Status> {
-        let (fingerprint, subject_dn, issuer_dn) = extract_certs(&request)?;
+        let (fingerprint, subject_dn, issuer_dn) =
+            extract_certs(&request, &self.client_cert_header)?;
 
         info!(
             "Got do_get request from: subject: {}, issuer: {}, fingerprint: {}",
@@ -446,7 +496,8 @@ impl FlightService for FlightRelay {
         &self,
         get_info_request: Request<FlightDescriptor>,
     ) -> Result<Response<FlightInfo>, Status> {
-        let (fingerprint, subject_dn, issuer_dn) = extract_certs(&get_info_request)?;
+        let (fingerprint, subject_dn, issuer_dn) =
+            extract_certs(&get_info_request, &self.client_cert_header)?;
 
         info!(
             "Got get_flight_info request from: subject: {}, issuer: {}, fingerprint: {}",
@@ -567,7 +618,8 @@ impl FlightService for FlightRelay {
         &self,
         request: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoPutStream>, Status> {
-        let (fingerprint, subject_dn, issuer_dn) = extract_certs(&request)?;
+        let (fingerprint, subject_dn, issuer_dn) =
+            extract_certs(&request, &self.client_cert_header)?;
         info!(
             "Got do_put request from: subject: {}, issuer: {}, fingerprint: {}",
             subject_dn, issuer_dn, fingerprint

@@ -74,6 +74,11 @@ services:
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
       DIRECT_TLS: true
       RUST_LOG: 4
+  global-data-relay-proxy:
+    network_mode: "host"
+    image: global_data_relay_proxy
+    volumes: 
+      - ${PWD}:/home/nginx
   global-data-relay: 
     network_mode: "host"
     image: single_bin_deployment
@@ -91,13 +96,12 @@ services:
       REST_SERVICE_URL: "0.0.0.0"
       REST_SERVICE_PORT: "8443"
       CA_CERT_FILE: ${PWD}/cacert.pem
-      SERVER_CERT_FILE: ${PWD}/deploy/development/global_data_relay/cert.pem 
-      SERVER_KEY_FILE: ${PWD}/deploy/development/global_data_relay/key.pem
       CLIENT_CERT_FILE: ${PWD}/deploy/development/global_data_relay/client_cert.pem 
       CLIENT_KEY_FILE: ${PWD}/deploy/development/global_data_relay/client_key.pem
       RUST_BACKTRACE: 0
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
-      DIRECT_TLS: true
+      DIRECT_TLS: false
+      CLIENT_CERT_HEADER: X-CLIENT-CERT
       RUST_LOG: 4
   emea-data-relay: 
     network_mode: "host"

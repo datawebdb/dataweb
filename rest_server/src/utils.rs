@@ -4,8 +4,9 @@ use actix_web::{HttpRequest, HttpResponse};
 use arrow::json::writer::record_batches_to_json_rows;
 use arrow::record_batch::RecordBatch;
 
-use mesh::pki::parse_certificate;
+use mesh::pki::{parse_certificate, parse_urlencoded_pemstr};
 use rustls::Certificate;
+
 use tracing::{error, warn};
 
 use crate::error::{RelayError, Result};
@@ -48,11 +49,7 @@ pub(crate) fn parse_certs_from_header(
     let inner = cert.to_str().map_err(|_e| {
         RelayError::new("Invalid client_cert_header value. Unable to authenticate client.")
     })?;
-    let decoded = urlencoding::decode(inner)
-        .map_err(|_e| RelayError::new("Unable to url decode client cert from header"))?;
-    let rustls_cert = Certificate(decoded.as_ref().into());
-    parse_certificate(&rustls_cert)
-        .map_err(|_e| RelayError::new("Found client cert in header, but unable to parse"))
+    parse_urlencoded_pemstr(inner).map_err(|e| RelayError::new(&e.to_string()))
 }
 
 /// Extracts client certificates from [HttpRequest]. May extract certificate from passed header or direct TLS depending

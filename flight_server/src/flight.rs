@@ -30,8 +30,10 @@ use mesh::model::query::{
 };
 use mesh::model::relay::Relay;
 use mesh::model::user::User;
-use mesh::pki::parse_certificate;
+use mesh::pki::{parse_certificate, parse_urlencoded_pemstr};
+
 use std::collections::HashMap;
+
 use tokio::task::JoinSet;
 use tonic::transport::{Certificate, ClientTlsConfig, Identity};
 use tracing::{debug, error, info, warn};
@@ -96,13 +98,10 @@ fn extract_certs_header<T>(
             let inner = value
                 .to_str()
                 .map_err(|_e| Status::unauthenticated("Unable to read client cert from header"))?;
-            let decoded = urlencoding::decode(inner).map_err(|_e| {
-                Status::unauthenticated("Unable to url decode client cert from header")
-            })?;
-            let cert = Certificate::from_pem(decoded.as_ref());
-            let rustls_cert = rustls::Certificate(cert.into_inner());
-            parse_certificate(&rustls_cert).map_err(|_e| {
-                Status::permission_denied("Found client cert in header, but unable to parse")
+            parse_urlencoded_pemstr(inner).map_err(|e| {
+                Status::unauthenticated(format!(
+                    "Cert header authentication failed with error: {e}"
+                ))
             })
         }
         None => Err(Status::unauthenticated(

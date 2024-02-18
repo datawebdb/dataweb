@@ -3,7 +3,7 @@ use std::sync::Arc;
 use arrow_flight::{flight_service_client::FlightServiceClient, FlightClient};
 use datafusion::error::{DataFusionError, Result};
 use tonic::transport::{Certificate, ClientTlsConfig, Identity};
-use tracing::info;
+use tracing::debug;
 
 pub async fn get_flight_client(
     client_cert: Arc<Vec<u8>>,
@@ -11,7 +11,7 @@ pub async fn get_flight_client(
     ca_cert: Arc<Vec<u8>>,
     endpoint: &str,
 ) -> Result<FlightClient> {
-    info!("Connecting to flight endpoint {endpoint}");
+    debug!("Connecting to flight endpoint {endpoint}");
     let channel = tonic::transport::Channel::from_shared(endpoint.to_string())
         .map_err(|e| DataFusionError::External(Box::new(e)))?
         .tls_config(

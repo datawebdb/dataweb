@@ -45,6 +45,7 @@ sqlparser = "0.39.0"
 async-channel = {version="2.1.1", optional=true }
 prusto = {version="0.5.1", optional=true }
 tracing = {workspace = true}
+urlencoding = { workspace = true }
 
 [features]
 default = ["trino", "datafusion", "async-channel"]

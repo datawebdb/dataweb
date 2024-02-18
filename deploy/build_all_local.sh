@@ -22,3 +22,5 @@ docker build -f deploy/Dockerfile -t diesel --target diesel_build .
 docker build -f deploy/Dockerfile.Ballista -t ballista-scheduler --target scheduler .
 
 docker build -f deploy/Dockerfile.Ballista -t ballista-executor --target executor .
+
+docker build -f deploy/Dockerfile.nginx -t global_data_relay_proxy --target global_data_relay_proxy .

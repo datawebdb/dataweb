@@ -177,7 +177,7 @@ jobs:
         run: |
           mkdir results
           ./deploy/build_and_deploy.sh docker
-          sleep 3
+          sleep 10
       - name: Run pytest and WebEngine tests
         run: | 
           chmod 777 client_cert_all_access.pem

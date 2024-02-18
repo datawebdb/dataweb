@@ -1,5 +1,5 @@
 # Build Stage - used to build ONLY the rest_server image
-FROM rust:1.73.0 AS debug_builder
+FROM rust:1.76.0 AS debug_builder
 WORKDIR /usr/src/
 
 RUN apt-get update 
@@ -17,7 +17,7 @@ USER 1000
 CMD ["/rest_server"]
 
 # Build Stage - used to build ONLY the rest_server image
-FROM rust:1.73.0 AS release_builder
+FROM rust:1.76.0 AS release_builder
 WORKDIR /usr/src/
 
 RUN apt-get update 

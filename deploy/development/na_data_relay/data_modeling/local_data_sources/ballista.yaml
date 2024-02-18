@@ -1,6 +1,6 @@
 name: ballista
 connection_options: !FlightSQL
-  endpoint: 'http://127.0.0.1:50090'
+  endpoint: 'http://localhost:50090'
   auth: !Basic
     username: admin
     password: BALLISTA_AUTH_PASS

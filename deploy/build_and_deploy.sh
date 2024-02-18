@@ -1,31 +1,8 @@
 #!/bin/bash
 
-#blow away any existing deployment if exists
-docker stop postgres
-docker stop trino
-docker stop global_data_relay
-docker stop na_data_relay
-docker stop na_us_data_relay
-docker stop emea_data_relay 
-docker stop apac_data_relay 
-docker stop ballista-scheduler
-docker stop ballista-executor
-docker rm global_data_relay
-docker rm na_data_relay
-docker rm na_us_data_relay
-docker rm emea_data_relay 
-docker rm apac_data_relay 
-docker rm postgres
-docker rm trino
-docker rm ballista-scheduler
-docker rm ballista-executor
-
 mkdir results
 
 set -e
-
-docker run --name trino -d -p 8080:8080 trinodb/trino
-docker run --name postgres --network="host" -e POSTGRES_PASSWORD=dev!@ -d postgres
 
 if [[ $1 == "local" ]] 
 then
@@ -37,65 +14,57 @@ else
     deploy/build_all_debug.sh
 fi
 
-docker run --name ballista-scheduler -d --network="host" ballista-scheduler --bind-port 50090
-docker run --name ballista-executor -d --network="host" \
-ballista-executor --bind-port 50091 --scheduler-host 127.0.0.1 --scheduler-port 50090
-
 # These are the server certs for hosted services
 mkcert -key-file deploy/development/global_data_relay/key.pem \
 -cert-file deploy/development/global_data_relay/cert.pem \
-localhost 127.0.0.1
-
-mkcert -key-file deploy/development/global_data_relay/key.pem \
--cert-file deploy/development/global_data_relay/cert.pem \
-localhost 127.0.0.1
+global-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/na_data_relay/key.pem \
 -cert-file deploy/development/na_data_relay/cert.pem \
-localhost 127.0.0.1
+na-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/na_us_data_relay/key.pem \
 -cert-file deploy/development/na_us_data_relay/cert.pem \
-localhost 127.0.0.1
+na-us-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/emea_data_relay/key.pem \
 -cert-file deploy/development/emea_data_relay/cert.pem \
-localhost 127.0.0.1
+emea-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/apac_data_relay/key.pem \
 -cert-file deploy/development/apac_data_relay/cert.pem \
-localhost 127.0.0.1
+apac-data-relay localhost 127.0.0.1
 
 # These are the client certs when authenticating to other relays' services
 mkcert -key-file deploy/development/global_data_relay/client_key.pem \
 -cert-file deploy/development/global_data_relay/client_cert.pem \
 -client \
-localhost 127.0.0.1
+global-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/na_data_relay/client_key.pem \
 -cert-file deploy/development/na_data_relay/client_cert.pem \
 -client \
-localhost 127.0.0.1
+na-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/na_us_data_relay/client_key.pem \
 -cert-file deploy/development/na_us_data_relay/client_cert.pem \
 -client \
-localhost 127.0.0.1
+na-us-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/emea_data_relay/client_key.pem \
 -cert-file deploy/development/emea_data_relay/client_cert.pem \
 -client \
-localhost 127.0.0.1
+emea-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/apac_data_relay/client_key.pem \
 -cert-file deploy/development/apac_data_relay/client_cert.pem \
 -client \
-localhost 127.0.0.1
+apac-data-relay localhost 127.0.0.1
 
 mkcert -key-file deploy/development/global_data_relay/offline_key.pem \
 -cert-file deploy/development/global_data_relay/offline_cert.pem \
 -client \
-localhost 127.0.0.1
+offline-relay localhost 127.0.0.1
 
 # These are the client certs for test users authenticating with the relay network
 mkcert -key-file client_key_all_access.pem \
@@ -113,9 +82,14 @@ cp $(mkcert -CAROOT)/rootCA.pem ./cacert.pem
 find . -type f -name "*.pem" -print0 | xargs -0 chmod 744
 find . -type f -name "*.yaml" -print0 | xargs -0 chmod 744
 
-deploy/development/global_data_relay/deploy_global_data_relay.sh 
-deploy/development/na_data_relay/deploy_na_data_relay.sh 
-deploy/development/na_us_data_relay/deploy_na_us_data_relay.sh 
-deploy/development/emea_data_relay/deploy_emea_data_relay.sh 
-deploy/development/apac_data_relay/deploy_apac_data_relay.sh 
+docker compose -f ./deploy/compose.yaml up -d --force-recreate
+
+#give some time for the database to fully come up before attempting to configure
+sleep 5
+
+deploy/development/global_data_relay/configure_global_data_relay.sh 
+deploy/development/na_data_relay/configure_na_data_relay.sh 
+deploy/development/na_us_data_relay/configure_na_us_data_relay.sh 
+deploy/development/emea_data_relay/configure_emea_data_relay.sh 
+deploy/development/apac_data_relay/configure_apac_data_relay.sh 
 

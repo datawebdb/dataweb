@@ -1,0 +1,151 @@
+services: 
+  trino: 
+    image: trinodb/trino
+    ports: 
+      - "8080:8080"
+    restart: always
+  pgdb: 
+    image: postgres
+    network_mode: "host"
+    restart: always
+    environment: 
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev!
+  ballista-scheduler:
+    image: "ballista-scheduler"
+    command: --bind-port 50090
+    ports:
+      - "50090:50090"
+  ballista-executor: 
+    image: ballista-executor
+    command: --bind-port 50091 --scheduler-host ballista-scheduler --scheduler-port 50090
+    depends_on: 
+      - ballista-scheduler
+  na-us-data-relay: 
+    network_mode: "host"
+    image: single_bin_deployment
+    volumes: 
+      - ${PWD}/deploy/development/na_us_data_relay/lineitem.csv:/deploy/development/na_us_data_relay/lineitem.csv
+      - ${PWD}:${PWD}
+    working_dir: ${PWD}
+    restart: always
+    environment: 
+      MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
+      RELAY_NAME: "na_us_data_relay"
+      DATABASE_URL: 'postgres://postgres:dev!@localhost/na_us_data_relay'
+      RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
+      RESULT_SOURCE_PFX: "${PWD}/results/"
+      FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50054"
+      REST_SERVICE_URL: "0.0.0.0"
+      REST_SERVICE_PORT: "8446"
+      CA_CERT_FILE: ${PWD}/cacert.pem
+      SERVER_CERT_FILE: ${PWD}/deploy/development/na_us_data_relay/cert.pem 
+      SERVER_KEY_FILE: ${PWD}/deploy/development/na_us_data_relay/key.pem
+      CLIENT_CERT_FILE: ${PWD}/deploy/development/na_us_data_relay/client_cert.pem 
+      CLIENT_KEY_FILE: ${PWD}/deploy/development/na_us_data_relay/client_key.pem
+      RUST_BACKTRACE: 0
+      MIN_PARALLELISM_PER_QUERY_WORKER: 16
+      DIRECT_TLS: true
+      RUST_LOG: 4
+  na-data-relay: 
+    network_mode: "host"
+    image: single_bin_deployment
+    volumes: 
+      - ${PWD}:${PWD}
+    restart: always
+    working_dir: ${PWD}
+    environment: 
+      MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
+      RELAY_NAME: "na_data_relay"
+      DATABASE_URL: 'postgres://postgres:dev!@localhost/na_data_relay'
+      RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
+      RESULT_SOURCE_PFX: "${PWD}/results/"
+      FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50055"
+      REST_SERVICE_URL: "0.0.0.0"
+      REST_SERVICE_PORT: "8447"
+      CA_CERT_FILE: ${PWD}/cacert.pem
+      SERVER_CERT_FILE: ${PWD}/deploy/development/na_data_relay/cert.pem 
+      SERVER_KEY_FILE: ${PWD}/deploy/development/na_data_relay/key.pem
+      CLIENT_CERT_FILE: ${PWD}/deploy/development/na_data_relay/client_cert.pem 
+      CLIENT_KEY_FILE: ${PWD}/deploy/development/na_data_relay/client_key.pem
+      BALLISTA_AUTH_PASS: password
+      RUST_BACKTRACE: 0
+      MIN_PARALLELISM_PER_QUERY_WORKER: 16
+      DIRECT_TLS: true
+      RUST_LOG: 4
+  global-data-relay: 
+    network_mode: "host"
+    image: single_bin_deployment
+    volumes: 
+      - ${PWD}:${PWD}
+    restart: always
+    working_dir: ${PWD}
+    environment: 
+      MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
+      RELAY_NAME: "global_data_relay"
+      DATABASE_URL: 'postgres://postgres:dev!@localhost/global_data_relay'
+      RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
+      RESULT_SOURCE_PFX: "${PWD}/results/"
+      FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50051"
+      REST_SERVICE_URL: "0.0.0.0"
+      REST_SERVICE_PORT: "8443"
+      CA_CERT_FILE: ${PWD}/cacert.pem
+      SERVER_CERT_FILE: ${PWD}/deploy/development/global_data_relay/cert.pem 
+      SERVER_KEY_FILE: ${PWD}/deploy/development/global_data_relay/key.pem
+      CLIENT_CERT_FILE: ${PWD}/deploy/development/global_data_relay/client_cert.pem 
+      CLIENT_KEY_FILE: ${PWD}/deploy/development/global_data_relay/client_key.pem
+      RUST_BACKTRACE: 0
+      MIN_PARALLELISM_PER_QUERY_WORKER: 16
+      DIRECT_TLS: true
+      RUST_LOG: 4
+  emea-data-relay: 
+    network_mode: "host"
+    image: single_bin_deployment
+    volumes: 
+      - ${PWD}:${PWD}
+    restart: always
+    working_dir: ${PWD}
+    environment: 
+      MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
+      RELAY_NAME: "emea_data_relay"
+      DATABASE_URL: 'postgres://postgres:dev!@localhost/emea_data_relay'
+      RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
+      RESULT_SOURCE_PFX: "${PWD}/results/"
+      FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50052"
+      REST_SERVICE_URL: "0.0.0.0"
+      REST_SERVICE_PORT: "8444"
+      CA_CERT_FILE: ${PWD}/cacert.pem
+      SERVER_CERT_FILE: ${PWD}/deploy/development/emea_data_relay/cert.pem 
+      SERVER_KEY_FILE: ${PWD}/deploy/development/emea_data_relay/key.pem
+      CLIENT_CERT_FILE: ${PWD}/deploy/development/emea_data_relay/client_cert.pem 
+      CLIENT_KEY_FILE: ${PWD}/deploy/development/emea_data_relay/client_key.pem
+      RUST_BACKTRACE: 0
+      MIN_PARALLELISM_PER_QUERY_WORKER: 16
+      DIRECT_TLS: true
+      RUST_LOG: 4
+  apac-data-relay: 
+    network_mode: "host"
+    image: single_bin_deployment
+    volumes: 
+      - ${PWD}:${PWD}
+    restart: always
+    working_dir: ${PWD}
+    environment: 
+      MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
+      RELAY_NAME: "apac_data_relay"
+      DATABASE_URL: 'postgres://postgres:dev!@localhost/apac_data_relay'
+      RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
+      RESULT_SOURCE_PFX: "${PWD}/results/"
+      FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50053"
+      REST_SERVICE_URL: "0.0.0.0"
+      REST_SERVICE_PORT: "8445"
+      CA_CERT_FILE: ${PWD}/cacert.pem
+      SERVER_CERT_FILE: ${PWD}/deploy/development/apac_data_relay/cert.pem 
+      SERVER_KEY_FILE: ${PWD}/deploy/development/apac_data_relay/key.pem
+      CLIENT_CERT_FILE: ${PWD}/deploy/development/apac_data_relay/client_cert.pem 
+      CLIENT_KEY_FILE: ${PWD}/deploy/development/apac_data_relay/client_key.pem
+      RUST_BACKTRACE: 0
+      MIN_PARALLELISM_PER_QUERY_WORKER: 16
+      DIRECT_TLS: true
+      RUST_LOG: 4

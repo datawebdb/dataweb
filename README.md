@@ -329,7 +329,7 @@ Integration testing is important and complex, since much of the behavior we want
 deploy/build_and_deploy.sh
 ```
 
-This script depends on a local installation of docker and [mkcert](https://github.com/FiloSottile/mkcert).
+This script depends on a local installation of `docker`, `docker compose` and [mkcert](https://github.com/FiloSottile/mkcert).
 
 Pyarrow based low-level integration tests can be executed via:
 

@@ -1,6 +1,6 @@
 - name: global_data_relay
-  rest_endpoint: "https://localhost:8444"
-  flight_endpoint: "https://localhost:50052"
+  rest_endpoint: "https://localhost:8443"
+  flight_endpoint: "https://localhost:50051"
   x509_cert_file: ./deploy/development/global_data_relay/client_cert.pem
 - name: emea_data_relay
   rest_endpoint: "https://localhost:8444"

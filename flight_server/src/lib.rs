@@ -3,7 +3,7 @@ use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 
 use flight::FlightRelay;
 
-use mesh::conf::EnvConfigSettings;
+use mesh::{conf::EnvConfigSettings, crud::run_migrations};
 
 use mesh::error::MeshError;
 use mesh::execute::result_manager::ResultManager;
@@ -25,6 +25,7 @@ mod flight;
 pub async fn run() -> Result<(), MeshError> {
     let env_conf = EnvConfigSettings::init();
 
+    run_migrations(&env_conf.db_url);
     let config =
         AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(&env_conf.db_url);
     let db_pool = Pool::builder()

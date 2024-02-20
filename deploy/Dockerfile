@@ -1,57 +1,43 @@
 # Build Stage
-FROM rust:1.76.0 AS debug_builder
+FROM ubuntu:22.04 AS debug_builder
+
+RUN apt-get update && apt-get install curl build-essential libpq-dev -y
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /usr/src/
-
-RUN apt-get update 
-RUN apt-get install musl musl-tools python3-pip -y 
-RUN pip3 install cargo-zigbuild --break-system-packages
-RUN rustup target add x86_64-unknown-linux-musl
-
-
 COPY ./ ./
-RUN cargo zigbuild --target x86_64-unknown-linux-musl
+RUN cargo build
 
 # copy out the binaries
 FROM scratch as debug_build
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/flight_server /
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/rest_server /
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/query_runner /
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/single_binary_deployment /
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/relayctl /
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/data_web_engine /
+COPY --from=debug_builder /usr/src/target/debug/flight_server /
+COPY --from=debug_builder /usr/src/target/debug/rest_server /
+COPY --from=debug_builder /usr/src/target/debug/query_runner /
+COPY --from=debug_builder /usr/src/target/debug/single_binary_deployment /
+COPY --from=debug_builder /usr/src/target/debug/relayctl /
+COPY --from=debug_builder /usr/src/target/debug/data_web_engine /
 
 #copy binaries from a local build
 FROM scratch as debug_local_build
-COPY ./target/x86_64-unknown-linux-musl/debug/flight_server /
-COPY ./target/x86_64-unknown-linux-musl/debug/rest_server /
-COPY ./target/x86_64-unknown-linux-musl/debug/query_runner /
-COPY ./target/x86_64-unknown-linux-musl/debug/single_binary_deployment /
-COPY ./target/x86_64-unknown-linux-musl/debug/relayctl /
-COPY ./target/x86_64-unknown-linux-musl/debug/data_web_engine /
+COPY ./target/debug/flight_server /
+COPY ./target/debug/rest_server /
+COPY ./target/debug/query_runner /
+COPY ./target/debug/single_binary_deployment /
+COPY ./target/debug/relayctl /
+COPY ./target/debug/data_web_engine /
 
 # Build Stage
-FROM rust:1.76.0 AS release_builder
+FROM rust:1.76.0-bullseye AS release_builder
 WORKDIR /usr/src/
 
-RUN apt-get update 
-RUN apt-get install musl musl-tools python3-pip -y 
-RUN pip3 install cargo-zigbuild --break-system-packages
-RUN rustup target add x86_64-unknown-linux-musl
-
 COPY ./ ./
-RUN cargo zigbuild --target x86_64-unknown-linux-musl --release
+RUN cargo build --release
 
 # copy out the binaries
-FROM scratch as release_build
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/flight_server /
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/rest_server /
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/query_runner /
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/single_binary_deployment /
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/relayctl /
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/data_web_engine /
-
-FROM rust:1.76.0 AS diesel_build
-RUN apt-get update 
-RUN apt-get install libpq-dev -y
-RUN cargo install diesel_cli --no-default-features --features postgres
-ENTRYPOINT [ "diesel" ]
+FROM debian:11 as release_build
+COPY --from=release_builder /usr/src/target/release/flight_server /
+COPY --from=release_builder /usr/src/target/release/rest_server /
+COPY --from=release_builder /usr/src/target/release/query_runner /
+COPY --from=release_builder /usr/src/target/release/single_binary_deployment /
+COPY --from=release_builder /usr/src/target/release/relayctl /
+COPY --from=release_builder /usr/src/target/release/data_web_engine /

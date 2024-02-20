@@ -2,7 +2,7 @@
 FROM debug_build as debug_build
 
 #Copy the prebuild binary from the base build image
-FROM scratch as debug_prebuild
+FROM ubuntu:22.04 as debug_prebuild
 COPY --from=debug_build /data_web_engine /
 USER 1000
 ENTRYPOINT ["/data_web_engine"]
@@ -11,7 +11,7 @@ ENTRYPOINT ["/data_web_engine"]
 FROM release_build as release_build
 
 #Copy the prebuild binary from the base build image
-FROM scratch as release_prebuild
+FROM debian:11 as release_prebuild
 COPY --from=release_build /data_web_engine /
 USER 1000
 ENTRYPOINT ["/data_web_engine"]

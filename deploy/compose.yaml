@@ -4,12 +4,49 @@ services:
     ports: 
       - "8080:8080"
     restart: always
-  pgdb: 
+  db-na: 
     image: postgres
+    command: -p 5433
     network_mode: "host"
     restart: always
     environment: 
-      POSTGRES_DB: postgres
+      POSTGRES_DB: na_data_relay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev!
+  db-na-us: 
+    image: postgres
+    command: -p 5434
+    network_mode: "host"
+    restart: always
+    environment: 
+      POSTGRES_DB: na_us_data_relay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev!
+  db-global: 
+    image: postgres
+    command: -p 5435
+    network_mode: "host"
+    restart: always
+    environment: 
+      POSTGRES_DB: global_data_relay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev!
+  db-apac: 
+    image: postgres
+    command: -p 5436
+    network_mode: "host"
+    restart: always
+    environment: 
+      POSTGRES_DB: apac_data_relay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev!
+  db-emea: 
+    image: postgres
+    command: -p 5437
+    network_mode: "host"
+    restart: always
+    environment: 
+      POSTGRES_DB: emea_data_relay
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: dev!
   ballista-scheduler:
@@ -33,7 +70,7 @@ services:
     environment: 
       MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
       RELAY_NAME: "na_us_data_relay"
-      DATABASE_URL: 'postgres://postgres:dev!@localhost/na_us_data_relay'
+      DATABASE_URL: 'postgres://postgres:dev!@localhost:5434/na_us_data_relay'
       RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
       RESULT_SOURCE_PFX: "${PWD}/results/"
       FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50054"
@@ -58,7 +95,7 @@ services:
     environment: 
       MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
       RELAY_NAME: "na_data_relay"
-      DATABASE_URL: 'postgres://postgres:dev!@localhost/na_data_relay'
+      DATABASE_URL: 'postgres://postgres:dev!@localhost:5433/na_data_relay'
       RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
       RESULT_SOURCE_PFX: "${PWD}/results/"
       FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50055"
@@ -89,7 +126,7 @@ services:
     environment: 
       MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
       RELAY_NAME: "global_data_relay"
-      DATABASE_URL: 'postgres://postgres:dev!@localhost/global_data_relay'
+      DATABASE_URL: 'postgres://postgres:dev!@localhost:5435/global_data_relay'
       RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
       RESULT_SOURCE_PFX: "${PWD}/results/"
       FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50051"
@@ -113,7 +150,7 @@ services:
     environment: 
       MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
       RELAY_NAME: "emea_data_relay"
-      DATABASE_URL: 'postgres://postgres:dev!@localhost/emea_data_relay'
+      DATABASE_URL: 'postgres://postgres:dev!@localhost:5437/emea_data_relay'
       RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
       RESULT_SOURCE_PFX: "${PWD}/results/"
       FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50052"
@@ -138,7 +175,7 @@ services:
     environment: 
       MSG_BROKER_OPTS: '{"type":  "AsyncChannel"}'
       RELAY_NAME: "apac_data_relay"
-      DATABASE_URL: 'postgres://postgres:dev!@localhost/apac_data_relay'
+      DATABASE_URL: 'postgres://postgres:dev!@localhost:5436/apac_data_relay'
       RESULT_SOURCE_OBJECT_STORE: "LocalFileSystem"
       RESULT_SOURCE_PFX: "${PWD}/results/"
       FLIGHT_SERVICE_ENDPOINT: "0.0.0.0:50053"

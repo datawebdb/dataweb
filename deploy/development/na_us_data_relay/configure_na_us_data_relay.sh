@@ -1,21 +1,6 @@
 echo "configuring na_us_data_relay!"
 
-export DATABASE_URL='postgres://postgres:dev!@localhost/na_us_data_relay'
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel setup 
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel migration run 
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel migration redo --all 
+export DATABASE_URL='postgres://postgres:dev!@localhost:5434/na_us_data_relay'
 
 docker run --network="host" \
 --env DATABASE_URL \

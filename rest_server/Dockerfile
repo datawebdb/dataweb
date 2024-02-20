@@ -1,36 +1,28 @@
 # Build Stage - used to build ONLY the rest_server image
-FROM rust:1.76.0 AS debug_builder
+FROM rust:1.76.0-bullseye AS debug_builder
 WORKDIR /usr/src/
 
-RUN apt-get update 
-RUN apt-get install musl musl-tools python3-pip -y 
-RUN pip3 install cargo-zigbuild --break-system-packages
-RUN rustup target add x86_64-unknown-linux-musl
-
 COPY ./ ./
-RUN cargo zigbuild --target x86_64-unknown-linux-musl -p rest_server
+RUN cargo build -p rest_server
 
 #Bundle Stage if using solo build of rest_server
-FROM scratch as debug_rebuild
-COPY --from=debug_builder /usr/src/target/x86_64-unknown-linux-musl/debug/rest_server /
+FROM ubuntu:22.04 as debug_rebuild
+COPY --from=debug_builder /usr/src/target/debug/rest_server /
+RUN apt-get update && apt-get install libpq-dev -y
 USER 1000
 CMD ["/rest_server"]
 
 # Build Stage - used to build ONLY the rest_server image
-FROM rust:1.76.0 AS release_builder
+FROM rust:1.76.0-bullseye AS release_builder
 WORKDIR /usr/src/
 
-RUN apt-get update 
-RUN apt-get install musl musl-tools python3-pip -y 
-RUN pip3 install cargo-zigbuild --break-system-packages
-RUN rustup target add x86_64-unknown-linux-musl
-
 COPY ./ ./
-RUN cargo zigbuild --target x86_64-unknown-linux-musl -p rest_server --release
+RUN cargo build -p rest_server --release
 
 #Bundle Stage if using solo build of rest_server
-FROM scratch as release_rebuild
-COPY --from=release_builder /usr/src/target/x86_64-unknown-linux-musl/release/rest_server /
+FROM debian:11 as release_rebuild
+COPY --from=release_builder /usr/src/target/release/rest_server /
+RUN apt-get update && apt-get install libpq-dev -y
 USER 1000
 CMD ["/rest_server"]
 
@@ -39,8 +31,9 @@ CMD ["/rest_server"]
 FROM debug_build as debug_build
 
 #Copy the prebuild binary from the base build image
-FROM scratch as debug_prebuild
+FROM ubuntu:22.04 as debug_prebuild
 COPY --from=debug_build /rest_server /
+RUN apt-get update && apt-get install libpq-dev -y
 USER 1000
 CMD ["/rest_server"]
 
@@ -48,7 +41,8 @@ CMD ["/rest_server"]
 FROM release_build as release_build
 
 #Copy the prebuild binary from the base build image
-FROM scratch as release_prebuild
+FROM debian:11 as release_prebuild
 COPY --from=release_build /rest_server /
+RUN apt-get update && apt-get install libpq-dev -y
 USER 1000
 CMD ["/rest_server"]

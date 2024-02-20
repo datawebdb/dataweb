@@ -1,21 +1,6 @@
 echo "configuring emea_data_relay!"
 
-export DATABASE_URL='postgres://postgres:dev!@localhost/emea_data_relay'
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel setup 
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel migration run 
-
-docker run --network="host" \
---env DATABASE_URL \
--v $PWD/core/migrations:/migrations \
-diesel migration redo --all 
+export DATABASE_URL='postgres://postgres:dev!@localhost:5437/emea_data_relay'
 
 docker run --network="host" \
 --env RUST_BACKTRACE \

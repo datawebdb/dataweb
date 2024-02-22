@@ -228,15 +228,11 @@ async fn process_user_decls(db: &mut PgDb<'_>, user_decl: UserDeclaration) -> Re
     let mut cert_reader = BufReader::new(user_decl.x509_cert.as_slice());
     let mut certs = load_certificate_from_reader(&mut cert_reader)?;
     if certs.is_empty() {
-        return Err(MeshError::Internal(format!(
-            "No certs were found in user declaration! \
-        Please pass a file containing exactly one certficate.",
-        )));
+        return Err(MeshError::Internal("No certs were found in user declaration! \
+        Please pass a file containing exactly one certficate.".to_string()));
     } else if certs.len() > 1 {
-        return Err(MeshError::Internal(format!(
-            "More than 1 cert found in user declaration! \
-        Please pass a file containing exactly one certficate.",
-        )));
+        return Err(MeshError::Internal("More than 1 cert found in user declaration! \
+        Please pass a file containing exactly one certficate.".to_string()));
     }
     let cert = certs.remove(0);
     let (fingerprint, subject_dn, issuer_dn) = parse_certificate(&cert)?;

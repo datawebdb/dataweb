@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
+
 use std::io::BufReader;
 
 use mesh::crud::PgDb;
@@ -240,17 +240,21 @@ async fn process_user_decls(db: &mut PgDb<'_>, user_decl: UserDeclaration) -> Re
     }
     let cert = certs.remove(0);
     let (fingerprint, subject_dn, issuer_dn) = parse_certificate(&cert)?;
-    let is_admin = user_decl.attributes.get("is_admin")
+    let is_admin = user_decl
+        .attributes
+        .get("is_admin")
         .unwrap_or(&"false".to_string())
         .parse::<bool>()
-        .map_err(|_| MeshError::Internal(format!("Got invalid value for UserAttribute.is_admin, not parsable as bool!")))?;
+        .map_err(|_| {
+            MeshError::Internal(
+                "Got invalid value for UserAttribute.is_admin, not parsable as bool!".to_string(),
+            )
+        })?;
     let new_user = NewUser {
         x509_sha256: fingerprint,
         x509_subject: subject_dn,
         x509_issuer: issuer_dn,
-        attributes: UserAttributes{
-            is_admin 
-        }
+        attributes: UserAttributes { is_admin },
     };
     let user = db.upsert_user_by_fingerprint(&new_user).await?;
     if let Some(permissions) = user_decl.permissions {

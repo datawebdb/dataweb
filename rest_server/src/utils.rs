@@ -1,27 +1,9 @@
-use std::sync::Arc;
-
-use actix_web::{HttpRequest, HttpResponse};
-use arrow::json::writer::record_batches_to_json_rows;
-use arrow::record_batch::RecordBatch;
+use actix_web::HttpRequest;
 
 use mesh::pki::{parse_certificate, parse_urlencoded_pemstr};
 use rustls::Certificate;
 
-use tracing::{error, warn};
-
 use crate::error::{RelayError, Result};
-
-use mesh::crud::PgDb;
-use mesh::execute::result_manager::ResultManager;
-
-use mesh::model::query::{
-    FlightStream, FlightStreamStatus, QueryTask, QueryTaskRemote, QueryTaskStatus,
-};
-
-use datafusion::common::DataFusionError;
-use futures::TryStreamExt;
-
-use serde_json::Value;
 
 /// Extracts client certificates from [HttpRequest], see [parse_certificate] for more information
 /// on the return values.

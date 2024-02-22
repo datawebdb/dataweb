@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::admin::utils::process_config_obj;
 use crate::error::Result;
-use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use mesh::crud::PgDb;
 use mesh::model::config_obj::ConfigObject;
 use tracing::info;
@@ -13,7 +13,7 @@ use crate::DbPool;
 #[post("/admin")]
 async fn get_query_results(
     pool: web::Data<DbPool>,
-    local_fingerprint: web::Data<Arc<String>>,
+    _local_fingerprint: web::Data<Arc<String>>,
     client_cert_header: web::Data<Option<String>>,
     config_obj: web::Json<ConfigObject>,
     req: HttpRequest,

@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::HttpResponse;
 use arrow::json::writer::record_batches_to_json_rows;
 use arrow::record_batch::RecordBatch;
-
-use mesh::pki::{parse_certificate, parse_urlencoded_pemstr};
-use rustls::Certificate;
 
 use tracing::{error, warn};
 

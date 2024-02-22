@@ -12,8 +12,9 @@ use mesh::execute::validation::validate_sql_template;
 
 use tracing::{debug, info};
 
+use super::utils::{count_task_status, stream_all_task_results};
 use crate::error::Result;
-use crate::utils::{count_task_status, parse_certs_from_req, stream_all_task_results};
+use crate::utils::parse_certs_from_req;
 use crate::DbPool;
 use mesh::crud::PgDb;
 use mesh::execute::result_manager::ResultManager;

@@ -1,7 +1,9 @@
 use crate::schema::users;
 
 use diesel::prelude::*;
+use diesel_as_jsonb::AsJsonb;
 use serde::{Deserialize, Serialize};
+use diesel::{prelude::Insertable, AsExpression, FromSqlRow};
 use uuid::Uuid;
 
 /// A user is any actor which requests data from the [Relay][crate::model::relay::Relay] network.
@@ -19,6 +21,16 @@ pub struct User {
     pub x509_subject: String,
     /// X509 Issuer Distinguished NAme
     pub x509_issuer: String,
+    /// Abritrary user attributes
+    pub attributes: UserAttributes,
+}
+
+/// Stores arbitrary user attributes which can be used for access control decisions. 
+#[derive(Debug, PartialEq, Serialize, Deserialize, AsJsonb, Clone)]
+pub struct UserAttributes{
+    /// Controls whether this user should be permitted access to configure the [Relay][crate::model::relay::Relay]
+    /// via the /admin endpoint.
+    pub is_admin: bool,
 }
 
 /// Used to create a new [User] object in the database.
@@ -33,4 +45,6 @@ pub struct NewUser {
     pub x509_subject: String,
     /// X509 Issuer Distinguished NAme
     pub x509_issuer: String,
+    /// Abritrary user attributes
+    pub attributes: UserAttributes,
 }

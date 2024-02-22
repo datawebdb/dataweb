@@ -56,7 +56,8 @@ CREATE TABLE users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     x509_sha256 VARCHAR NOT NULL UNIQUE,
     x509_subject VARCHAR NOT NULL,
-    x509_issuer VARCHAR NOT NULL
+    x509_issuer VARCHAR NOT NULL,
+    attributes jsonb NOT NULL
 );
 
 CREATE UNIQUE INDEX x509

@@ -183,6 +183,7 @@ diesel::table! {
         x509_sha256 -> Varchar,
         x509_subject -> Varchar,
         x509_issuer -> Varchar,
+        attributes -> Jsonb,
     }
 }
 

@@ -11,7 +11,7 @@ use mesh::model::entity::ArrowDataType;
 use mesh::model::mappings::{Mapping, NewRemoteEntityMapping, RemoteInfoMapping};
 use mesh::model::query::SubstitutionBlocks;
 use mesh::model::relay::NewRelay;
-use mesh::model::user::NewUser;
+use mesh::model::user::{NewUser, UserAttributes};
 use mesh::model::{
     data_stores::{NewDataField, NewDataSource},
     entity::NewInformation,
@@ -366,6 +366,7 @@ async fn process_user_decls(db: &mut PgDb<'_>, user_decls: Vec<UserDeclaration>)
             x509_sha256: fingerprint,
             x509_subject: subject_dn,
             x509_issuer: issuer_dn,
+            attributes: UserAttributes { is_admin: false },
         };
         let user = db.upsert_user_by_fingerprint(&new_user).await?;
         if let Some(permissions) = user_decl.permissions {

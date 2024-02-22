@@ -26,6 +26,7 @@ use rustls::server::AllowAnyAnonymousOrAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
+mod admin;
 mod error;
 mod query;
 mod utils;
@@ -168,8 +169,8 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
             .app_data(web::Data::new(result_manager.clone()))
             .app_data(web::Data::new(local_relay_fingerprint.clone()))
             .app_data(web::Data::new(env_config.client_cert_header.clone()))
-            .service(query::query)
-            .service(query::get_query_results)
+            .service(query::route::query)
+            .service(query::route::get_query_results)
     });
 
     if env_config.direct_tls {

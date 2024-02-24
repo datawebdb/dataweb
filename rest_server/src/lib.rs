@@ -122,24 +122,25 @@ fn rustls_config(
     Ok((cert_chain.remove(0), config))
 }
 
-async fn register_default_admin(cert_pem: String, pool: &DbPool){
-    let mut db = PgDb::try_from_pool(&pool).await.expect("Could not get connection from pool");
+async fn register_default_admin(cert_pem: String, pool: &DbPool) {
+    let mut db = PgDb::try_from_pool(pool)
+        .await
+        .expect("Could not get connection from pool");
     let cert = &mut BufReader::new(
-        File::open(&cert_pem).unwrap_or_else(|_| {
-            panic!("Unable to open {} with error:", cert_pem)
-        }),
+        File::open(&cert_pem).unwrap_or_else(|_| panic!("Unable to open {} with error:", cert_pem)),
     );
     let cert = Certificate(certs(cert).unwrap().remove(0));
     let (x509_sha256, x509_subject, x509_issuer) = parse_certificate(&cert).unwrap();
-    let newuser = NewUser{
+    let newuser = NewUser {
         x509_sha256,
         x509_subject,
         x509_issuer,
-        attributes: UserAttributes{ is_admin: true },
+        attributes: UserAttributes { is_admin: true },
     };
 
-    db.upsert_user_by_fingerprint(&newuser).await.expect("Failed to register default_admin");
-
+    db.upsert_user_by_fingerprint(&newuser)
+        .await
+        .expect("Failed to register default_admin");
 }
 
 pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::Result<()> {
@@ -180,7 +181,7 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
         .await
         .expect("pool failed to start");
 
-    if let Some(default_admin) = env::var("DEFAULT_RELAY_ADMIN").ok(){
+    if let Ok(default_admin) = env::var("DEFAULT_RELAY_ADMIN") {
         info!("Attempting to register default_admin user with identity {default_admin}");
         register_default_admin(default_admin, &pool).await;
     }

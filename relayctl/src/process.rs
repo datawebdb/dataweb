@@ -10,7 +10,11 @@ use mesh::model::config_commands::user::{ResolvedUserDeclaration, UserDeclaratio
 use mesh::model::config_commands::{ConfigCommand, ConfigObject, ResolvedConfigObject};
 use reqwest::Client;
 
-pub(crate) async fn apply(path: std::path::PathBuf, mut client: Client, relay_endpoint: String) -> Result<()> {
+pub(crate) async fn apply(
+    path: std::path::PathBuf,
+    mut client: Client,
+    relay_endpoint: String,
+) -> Result<()> {
     for filepath in walk_directory(path) {
         let command = match try_read_as_config_command(&filepath) {
             Ok(cmd) => cmd,
@@ -36,17 +40,28 @@ pub(crate) async fn apply(path: std::path::PathBuf, mut client: Client, relay_en
     Ok(())
 }
 
-pub async fn apply_command(command: ConfigCommand, client: &mut Client, relay_endpoint: &str) -> Result<()> {
+pub async fn apply_command(
+    command: ConfigCommand,
+    client: &mut Client,
+    relay_endpoint: &str,
+) -> Result<()> {
     let config_object = match command.config_object {
         ConfigObject::Entity(entity) => ResolvedConfigObject::Entity(resolve_entity_decl(entity)?),
-        ConfigObject::PeerRelay(relay) => ResolvedConfigObject::PeerRelay(resolve_relay_decl(relay)?),
+        ConfigObject::PeerRelay(relay) => {
+            ResolvedConfigObject::PeerRelay(resolve_relay_decl(relay)?)
+        }
         ConfigObject::User(user) => ResolvedConfigObject::User(resolve_user_decl(user)?),
         ConfigObject::LocalData(local_data) => ResolvedConfigObject::LocalData(local_data),
-        ConfigObject::LocalMapping(local_mapping) => ResolvedConfigObject::LocalMapping(local_mapping),
-        ConfigObject::RemoteMapping(remote_mapping) => ResolvedConfigObject::RemoteMapping(remote_mapping)
+        ConfigObject::LocalMapping(local_mapping) => {
+            ResolvedConfigObject::LocalMapping(local_mapping)
+        }
+        ConfigObject::RemoteMapping(remote_mapping) => {
+            ResolvedConfigObject::RemoteMapping(remote_mapping)
+        }
     };
 
-    let r = client.post(format!("{relay_endpoint}/admin/apply"))
+    let r = client
+        .post(format!("{relay_endpoint}/admin/apply"))
         .json(&config_object)
         .send()
         .await
@@ -108,22 +123,22 @@ fn resolve_entity_decl(entity: EntityDeclaration) -> Result<ResolvedEntityDeclar
     })
 }
 
-fn resolve_user_decl(user: UserDeclaration) -> Result<ResolvedUserDeclaration>{
+fn resolve_user_decl(user: UserDeclaration) -> Result<ResolvedUserDeclaration> {
     let cert_path = &user.x509_cert;
     let mut buf = Vec::new();
-    std::fs::File::open(&cert_path)?.read_to_end(&mut buf)?;
-    Ok(ResolvedUserDeclaration{
+    std::fs::File::open(cert_path)?.read_to_end(&mut buf)?;
+    Ok(ResolvedUserDeclaration {
         x509_cert: buf,
         attributes: user.attributes,
-        permissions: user.permissions
+        permissions: user.permissions,
     })
 }
 
-fn resolve_relay_decl(relay: PeerRelayDeclaration) -> Result<ResolvedPeerRelayDeclaration>{
+fn resolve_relay_decl(relay: PeerRelayDeclaration) -> Result<ResolvedPeerRelayDeclaration> {
     let cert_path = &relay.x509_cert;
     let mut buf = Vec::new();
-    std::fs::File::open(&cert_path)?.read_to_end(&mut buf)?;
-    Ok(ResolvedPeerRelayDeclaration{
+    std::fs::File::open(cert_path)?.read_to_end(&mut buf)?;
+    Ok(ResolvedPeerRelayDeclaration {
         name: relay.name,
         x509_cert: buf,
         permissions: relay.permissions,

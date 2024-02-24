@@ -25,10 +25,9 @@ enum Command {
     },
 }
 
-
-/// Reads certificate and key pem files into the same buffer and constructs a 
+/// Reads certificate and key pem files into the same buffer and constructs a
 /// [Identity][reqwest::Identity]
-fn read_identity() -> Result<reqwest::Identity>{
+fn read_identity() -> Result<reqwest::Identity> {
     let mut iden_pem = Vec::new();
 
     let client_cert_file = env::var("CLIENT_CERT_FILE").expect("CLIENT_CERT_FILE must be set");
@@ -38,18 +37,16 @@ fn read_identity() -> Result<reqwest::Identity>{
     Ok(reqwest::Identity::from_pem(&iden_pem).expect("could not parse client cert and key"))
 }
 
-
-fn get_reqw_client() -> Result<reqwest::Client>{
+fn get_reqw_client() -> Result<reqwest::Client> {
     let ca_cert_file = env::var("CA_CERT_FILE").expect("CA_CERT_FILE must be set");
     let mut cacert = Vec::new();
-    std::fs::File::open(&ca_cert_file)?.read_to_end(&mut cacert)?;
+    std::fs::File::open(ca_cert_file)?.read_to_end(&mut cacert)?;
     let identity = read_identity()?;
-    let mut client = reqwest::Client::builder().use_rustls_tls().identity(identity);
+    let mut client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .identity(identity);
 
-    let cert = reqwest::Certificate::from_pem(
-        &cacert,
-    )
-    .expect("Could not parse cacert");
+    let cert = reqwest::Certificate::from_pem(&cacert).expect("Could not parse cacert");
     client = client.add_root_certificate(cert);
     Ok(client.build().expect("client build err"))
 }
@@ -63,7 +60,7 @@ async fn main() -> Result<()> {
             let client = get_reqw_client()?;
             let relay_endpoint = env::var("RELAY_ENDPOINT").expect("RELAY_ENDPOINT must be set");
             apply(path, client, relay_endpoint).await?
-        },
+        }
     }
 
     Ok(())

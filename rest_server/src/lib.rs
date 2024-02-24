@@ -171,6 +171,7 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
             .app_data(web::Data::new(env_config.client_cert_header.clone()))
             .service(query::route::query)
             .service(query::route::get_query_results)
+            .service(admin::route::apply)
     });
 
     if env_config.direct_tls {

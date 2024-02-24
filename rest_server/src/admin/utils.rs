@@ -7,6 +7,13 @@ use mesh::crud::PgDb;
 use mesh::error::{MeshError, Result};
 
 use mesh::model::access_control::{ColumnPermission, RowPermission, SourcePermission};
+use mesh::model::config_commands::entity::ResolvedEntityDeclaration;
+use mesh::model::config_commands::local_data::ResolvedDataConnectionsDeclaration;
+use mesh::model::config_commands::local_mapping::ResolvedLocalMappingDeclaration;
+use mesh::model::config_commands::relay::ResolvedPeerRelayDeclaration;
+use mesh::model::config_commands::remote_mapping::ResolvedRemoteMappingsDeclaration;
+use mesh::model::config_commands::user::ResolvedUserDeclaration;
+use mesh::model::config_commands::ResolvedConfigObject;
 use mesh::model::entity::ArrowDataType;
 use mesh::model::mappings::{Mapping, NewRemoteEntityMapping, RemoteInfoMapping};
 use mesh::model::query::SubstitutionBlocks;
@@ -18,43 +25,30 @@ use mesh::model::{
 };
 use mesh::pki::{load_certificate_from_reader, parse_certificate};
 
-use mesh::model::config_obj::{
-    ConfigObject, DataConnectionsDeclaration, EntityDeclaration, LocalMappingDeclaration,
-    PeerRelayDeclaration, RemoteMappingsDeclaration, UserDeclaration,
-};
 
 /// Parses declaritive configuration object and updates the database state as appropriate.
-pub async fn process_config_obj(db: &mut PgDb<'_>, config_obj: ConfigObject) -> Result<()> {
+pub async fn process_config_obj(db: &mut PgDb<'_>, config_obj: ResolvedConfigObject) -> Result<()> {
     match config_obj {
-        ConfigObject::EntityConfig(entity_decl) => process_entity_decl(db, entity_decl).await?,
-        ConfigObject::LocalDataConfig(data_decl) => process_data_decl(db, data_decl).await?,
-        ConfigObject::LocalMappingConfig(map_decl) => {
+        ResolvedConfigObject::Entity(entity_decl) => process_entity_decl(db, entity_decl).await?,
+        ResolvedConfigObject::LocalData(data_decl) => process_data_decl(db, data_decl).await?,
+        ResolvedConfigObject::LocalMapping(map_decl) => {
             process_local_mapping_decl(db, map_decl).await?
         }
-        ConfigObject::PeerRelayConfig(relay_decl) => process_relay_decl(db, relay_decl).await?,
-        ConfigObject::RemoteMappingConfig(remote_map_decl) => {
+        ResolvedConfigObject::PeerRelay(relay_decl) => process_relay_decl(db, relay_decl).await?,
+        ResolvedConfigObject::RemoteMapping(remote_map_decl) => {
             process_remote_map_decl(db, remote_map_decl).await?
         }
-        ConfigObject::UserConfig(user_decl) => process_user_decls(db, user_decl).await?,
+        ResolvedConfigObject::User(user_decl) => process_user_decls(db, user_decl).await?,
     }
     Ok(())
 }
 
-async fn process_entity_decl(db: &mut PgDb<'_>, entity_decl: EntityDeclaration) -> Result<()> {
+async fn process_entity_decl(db: &mut PgDb<'_>, entity_decl: ResolvedEntityDeclaration) -> Result<()> {
     let entity = db.create_entity_if_not_exist(&entity_decl.name).await?;
     for info_decl in entity_decl.information {
         let new_info = NewInformation {
             name: info_decl.name,
-            arrow_dtype: {
-                match serde_json::from_str(info_decl.arrow_dtype.as_str()) {
-                    Ok(inner) => ArrowDataType { inner },
-                    Err(_) => {
-                        let modified = format!("\"{}\"", info_decl.arrow_dtype);
-                        let inner = serde_json::from_str(modified.as_str())?;
-                        ArrowDataType { inner }
-                    }
-                }
-            },
+            arrow_dtype: ArrowDataType { inner: info_decl.arrow_dtype },
             entity_id: entity.id,
         };
         db.upsert_information(&new_info).await?;
@@ -62,7 +56,7 @@ async fn process_entity_decl(db: &mut PgDb<'_>, entity_decl: EntityDeclaration) 
     Ok(())
 }
 
-async fn process_data_decl(db: &mut PgDb<'_>, data_decl: DataConnectionsDeclaration) -> Result<()> {
+async fn process_data_decl(db: &mut PgDb<'_>, data_decl: ResolvedDataConnectionsDeclaration) -> Result<()> {
     let data_con = db
         .upsert_connection(&data_decl.name, data_decl.connection_options)
         .await?;
@@ -101,7 +95,7 @@ async fn process_data_decl(db: &mut PgDb<'_>, data_decl: DataConnectionsDeclarat
 
 async fn process_local_mapping_decl(
     db: &mut PgDb<'_>,
-    map_decl: LocalMappingDeclaration,
+    map_decl: ResolvedLocalMappingDeclaration,
 ) -> Result<()> {
     let entity = db.get_entity(&map_decl.entity_name).await?;
     let mut all_mappings = vec![];
@@ -127,7 +121,7 @@ async fn process_local_mapping_decl(
     Ok(())
 }
 
-async fn process_relay_decl(db: &mut PgDb<'_>, relay_decl: PeerRelayDeclaration) -> Result<()> {
+async fn process_relay_decl(db: &mut PgDb<'_>, relay_decl: ResolvedPeerRelayDeclaration) -> Result<()> {
     let mut cert_reader = BufReader::new(relay_decl.x509_cert.as_slice());
     let mut certs = load_certificate_from_reader(&mut cert_reader)?;
 
@@ -180,7 +174,7 @@ async fn process_relay_decl(db: &mut PgDb<'_>, relay_decl: PeerRelayDeclaration)
 
 async fn process_remote_map_decl(
     db: &mut PgDb<'_>,
-    remote_map_decl: RemoteMappingsDeclaration,
+    remote_map_decl: ResolvedRemoteMappingsDeclaration,
 ) -> Result<()> {
     let entity = db.get_entity(&remote_map_decl.entity_name).await?;
     for peer_map in remote_map_decl.mappings {
@@ -224,7 +218,7 @@ async fn process_remote_map_decl(
     Ok(())
 }
 
-async fn process_user_decls(db: &mut PgDb<'_>, user_decl: UserDeclaration) -> Result<()> {
+async fn process_user_decls(db: &mut PgDb<'_>, user_decl: ResolvedUserDeclaration) -> Result<()> {
     let mut cert_reader = BufReader::new(user_decl.x509_cert.as_slice());
     let mut certs = load_certificate_from_reader(&mut cert_reader)?;
     if certs.is_empty() {

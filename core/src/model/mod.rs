@@ -1,5 +1,5 @@
 pub mod access_control;
-pub mod config_obj;
+pub mod config_commands;
 pub mod data_stores;
 pub mod entity;
 pub mod mappings;

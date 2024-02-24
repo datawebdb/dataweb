@@ -77,6 +77,11 @@ mkcert -key-file client_key_default_access.pem \
 -client \
 localhost 127.0.0.1
 
+mkcert -key-file client_key_admin.pem \
+-cert-file client_cert_admin.pem \
+-client \
+localhost 127.0.0.1
+
 cp $(mkcert -CAROOT)/rootCA.pem ./cacert.pem
 
 find . -type f -name "*.pem" -print0 | xargs -0 chmod 744

@@ -29,7 +29,7 @@ pub struct User {
 #[derive(Debug, PartialEq, Serialize, Deserialize, AsJsonb, Clone)]
 pub struct UserAttributes {
     /// Controls whether this user should be permitted access to configure the [Relay][crate::model::relay::Relay]
-    /// via the /admin endpoint.
+    /// via the /admin endpoints.
     pub is_admin: bool,
 }
 

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use crate::model::config_commands::empty_permission;
-use super::{no_permission_decl, user::PermissionsDecl};
 
+use super::{no_permission_decl, user::PermissionsDecl};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct PeerRelayDeclaration {

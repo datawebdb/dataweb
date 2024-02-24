@@ -4,7 +4,7 @@ use crate::admin::utils::process_config_obj;
 use crate::error::{RelayError, Result};
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use mesh::crud::PgDb;
-use mesh::model::config_commands::{ResolvedConfigCommand};
+use mesh::model::config_commands::ResolvedConfigCommand;
 use tracing::info;
 
 use crate::utils::parse_certs_from_req;
@@ -28,8 +28,10 @@ async fn apply(
 
     let mut db = PgDb::try_from_pool(&pool).await?;
     let user = db.get_user_by_x509_fingerprint(&fingerprint).await?;
-    if !user.attributes.is_admin{
-        return Err(RelayError::new("User is unauthorized for adminstrative actions!"))
+    if !user.attributes.is_admin {
+        return Err(RelayError::new(
+            "User is unauthorized for adminstrative actions!",
+        ));
     }
 
     process_config_obj(&mut db, config_obj.0.config_object).await?;

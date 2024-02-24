@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use arrow_schema::DataType;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct EntityDeclaration {

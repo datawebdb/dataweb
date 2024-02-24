@@ -4,7 +4,6 @@ use crate::model::data_stores::options::{ConnectionOptions, SourceOptions};
 
 use super::{empty_permission, DefaultPermissionDeclaration};
 
-
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct DataConnectionsDeclaration {
     pub name: String,
@@ -21,7 +20,6 @@ pub struct DataSourcesDeclaration {
     #[serde(default = "empty_permission")]
     pub default_permission: DefaultPermissionDeclaration,
 }
-
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct DataFieldsDeclaration {

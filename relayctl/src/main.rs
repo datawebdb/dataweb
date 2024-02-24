@@ -1,9 +1,4 @@
-use std::env;
-
-use clap::{Args, Parser, Subcommand};
-use diesel_async::pooled_connection::bb8::Pool;
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use mesh::crud::PgDb;
+use clap::{Parser, Subcommand};
 
 use mesh::error::Result;
 use process::apply;
@@ -19,7 +14,7 @@ pub struct Relayctl {
 }
 
 #[derive(Debug, Subcommand)]
-enum Command{
+enum Command {
     /// Parse a YAML file and send to Relay to apply desired state
     Apply {
         /// Path to the config command. Can be a directory of YAML files or a single YAML file.
@@ -32,8 +27,8 @@ enum Command{
 async fn main() -> Result<()> {
     let args = Relayctl::parse();
 
-    match args.command{
-        Command::Apply{path} => apply(path).await?
+    match args.command {
+        Command::Apply { path } => apply(path).await?,
     }
 
     Ok(())

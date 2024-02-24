@@ -1,10 +1,8 @@
-
 use serde::{Deserialize, Serialize};
 
 use crate::model::{mappings::Transformation, query::SubstitutionBlocks};
 
 use super::{default_false, no_entitymap, no_transformation};
-
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RemoteMappingsDeclaration {

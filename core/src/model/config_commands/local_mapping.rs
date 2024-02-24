@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::model::config_commands::no_transformation;
 use crate::model::mappings::Transformation;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct LocalMappingDeclaration {

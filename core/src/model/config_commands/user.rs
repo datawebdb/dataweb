@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::{empty_permission, no_permission_decl};
+use super::no_permission_decl;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ResolvedUserDeclaration {

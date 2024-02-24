@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-use self::{entity::{EntityDeclaration, ResolvedEntityDeclaration}, 
-local_data::{DataConnectionsDeclaration, ResolvedDataConnectionsDeclaration}, local_mapping::{LocalMappingDeclaration, ResolvedLocalMappingDeclaration}, 
-relay::{PeerRelayDeclaration, ResolvedPeerRelayDeclaration}, 
-remote_mapping::{EntityMapDecl, RemoteMappingsDeclaration, ResolvedRemoteMappingsDeclaration}, 
-user::{PermissionsDecl, ResolvedUserDeclaration, UserDeclaration}};
+use self::{
+    entity::{EntityDeclaration, ResolvedEntityDeclaration},
+    local_data::{DataConnectionsDeclaration, ResolvedDataConnectionsDeclaration},
+    local_mapping::{LocalMappingDeclaration, ResolvedLocalMappingDeclaration},
+    relay::{PeerRelayDeclaration, ResolvedPeerRelayDeclaration},
+    remote_mapping::{EntityMapDecl, RemoteMappingsDeclaration, ResolvedRemoteMappingsDeclaration},
+    user::{PermissionsDecl, ResolvedUserDeclaration, UserDeclaration},
+};
 
 use super::mappings::Transformation;
-
 
 pub mod entity;
 pub mod local_data;
@@ -18,14 +20,14 @@ pub mod user;
 
 /// Describes a desired state for a declared [ConfigObject].
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct ResolvedConfigCommand{
+pub struct ResolvedConfigCommand {
     pub api_version: String,
     pub config_object: ResolvedConfigObject,
 }
 
 /// Describes a desired state for a declared [ConfigObject].
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct ConfigCommand{
+pub struct ConfigCommand {
     pub api_version: String,
     pub config_object: ConfigObject,
 }
@@ -66,7 +68,7 @@ pub struct DefaultPermissionDeclaration {
     pub allowed_rows: String,
 }
 
-pub(crate) fn no_permission_decl() -> Option<Vec<PermissionsDecl>>{
+pub(crate) fn no_permission_decl() -> Option<Vec<PermissionsDecl>> {
     None
 }
 

@@ -25,7 +25,6 @@ use mesh::model::{
 };
 use mesh::pki::{load_certificate_from_reader, parse_certificate};
 
-
 /// Parses declaritive configuration object and updates the database state as appropriate.
 pub async fn process_config_obj(db: &mut PgDb<'_>, config_obj: ResolvedConfigObject) -> Result<()> {
     match config_obj {
@@ -43,12 +42,17 @@ pub async fn process_config_obj(db: &mut PgDb<'_>, config_obj: ResolvedConfigObj
     Ok(())
 }
 
-async fn process_entity_decl(db: &mut PgDb<'_>, entity_decl: ResolvedEntityDeclaration) -> Result<()> {
+async fn process_entity_decl(
+    db: &mut PgDb<'_>,
+    entity_decl: ResolvedEntityDeclaration,
+) -> Result<()> {
     let entity = db.create_entity_if_not_exist(&entity_decl.name).await?;
     for info_decl in entity_decl.information {
         let new_info = NewInformation {
             name: info_decl.name,
-            arrow_dtype: ArrowDataType { inner: info_decl.arrow_dtype },
+            arrow_dtype: ArrowDataType {
+                inner: info_decl.arrow_dtype,
+            },
             entity_id: entity.id,
         };
         db.upsert_information(&new_info).await?;
@@ -56,7 +60,10 @@ async fn process_entity_decl(db: &mut PgDb<'_>, entity_decl: ResolvedEntityDecla
     Ok(())
 }
 
-async fn process_data_decl(db: &mut PgDb<'_>, data_decl: ResolvedDataConnectionsDeclaration) -> Result<()> {
+async fn process_data_decl(
+    db: &mut PgDb<'_>,
+    data_decl: ResolvedDataConnectionsDeclaration,
+) -> Result<()> {
     let data_con = db
         .upsert_connection(&data_decl.name, data_decl.connection_options)
         .await?;
@@ -121,7 +128,10 @@ async fn process_local_mapping_decl(
     Ok(())
 }
 
-async fn process_relay_decl(db: &mut PgDb<'_>, relay_decl: ResolvedPeerRelayDeclaration) -> Result<()> {
+async fn process_relay_decl(
+    db: &mut PgDb<'_>,
+    relay_decl: ResolvedPeerRelayDeclaration,
+) -> Result<()> {
     let mut cert_reader = BufReader::new(relay_decl.x509_cert.as_slice());
     let mut certs = load_certificate_from_reader(&mut cert_reader)?;
 
@@ -222,11 +232,17 @@ async fn process_user_decls(db: &mut PgDb<'_>, user_decl: ResolvedUserDeclaratio
     let mut cert_reader = BufReader::new(user_decl.x509_cert.as_slice());
     let mut certs = load_certificate_from_reader(&mut cert_reader)?;
     if certs.is_empty() {
-        return Err(MeshError::Internal("No certs were found in user declaration! \
-        Please pass a file containing exactly one certficate.".to_string()));
+        return Err(MeshError::Internal(
+            "No certs were found in user declaration! \
+        Please pass a file containing exactly one certficate."
+                .to_string(),
+        ));
     } else if certs.len() > 1 {
-        return Err(MeshError::Internal("More than 1 cert found in user declaration! \
-        Please pass a file containing exactly one certficate.".to_string()));
+        return Err(MeshError::Internal(
+            "More than 1 cert found in user declaration! \
+        Please pass a file containing exactly one certficate."
+                .to_string(),
+        ));
     }
     let cert = certs.remove(0);
     let (fingerprint, subject_dn, issuer_dn) = parse_certificate(&cert)?;

@@ -1,11 +1,16 @@
+use std::io::Read;
+
 use mesh::error::{MeshError, Result};
 
 use mesh::model::config_commands::entity::{
     EntityDeclaration, ResolvedEntityDeclaration, ResolvedInformationDeclaration,
 };
+use mesh::model::config_commands::relay::{PeerRelayDeclaration, ResolvedPeerRelayDeclaration};
+use mesh::model::config_commands::user::{ResolvedUserDeclaration, UserDeclaration};
 use mesh::model::config_commands::{ConfigCommand, ConfigObject, ResolvedConfigObject};
+use reqwest::Client;
 
-pub(crate) async fn apply(path: std::path::PathBuf) -> Result<()> {
+pub(crate) async fn apply(path: std::path::PathBuf, mut client: Client, relay_endpoint: String) -> Result<()> {
     for filepath in walk_directory(path) {
         let command = match try_read_as_config_command(&filepath) {
             Ok(cmd) => cmd,
@@ -17,7 +22,7 @@ pub(crate) async fn apply(path: std::path::PathBuf) -> Result<()> {
                 continue;
             }
         };
-        match apply_command(command).await {
+        match apply_command(command, &mut client, &relay_endpoint).await {
             Ok(()) => println!("{} applied!", filepath.to_string_lossy()),
             Err(e) => {
                 println!(
@@ -31,11 +36,29 @@ pub(crate) async fn apply(path: std::path::PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub async fn apply_command(command: ConfigCommand) -> Result<()> {
-    let _config_object = match command.config_object {
+pub async fn apply_command(command: ConfigCommand, client: &mut Client, relay_endpoint: &str) -> Result<()> {
+    let config_object = match command.config_object {
         ConfigObject::Entity(entity) => ResolvedConfigObject::Entity(resolve_entity_decl(entity)?),
-        _ => todo!(),
+        ConfigObject::PeerRelay(relay) => ResolvedConfigObject::PeerRelay(resolve_relay_decl(relay)?),
+        ConfigObject::User(user) => ResolvedConfigObject::User(resolve_user_decl(user)?),
+        ConfigObject::LocalData(local_data) => ResolvedConfigObject::LocalData(local_data),
+        ConfigObject::LocalMapping(local_mapping) => ResolvedConfigObject::LocalMapping(local_mapping),
+        ConfigObject::RemoteMapping(remote_mapping) => ResolvedConfigObject::RemoteMapping(remote_mapping)
     };
+
+    let r = client.post(format!("{relay_endpoint}/admin/apply"))
+        .json(&config_object)
+        .send()
+        .await
+        .map_err(|e| MeshError::RemoteError(e.to_string()))?;
+
+    match r.text().await {
+        Ok(s) => println!("Response from remote: {s}"),
+        Err(e) => {
+            println!("Failed to parse response as text with e {e}");
+        }
+    }
+
     Ok(())
 }
 
@@ -82,5 +105,29 @@ fn resolve_entity_decl(entity: EntityDeclaration) -> Result<ResolvedEntityDeclar
     Ok(ResolvedEntityDeclaration {
         name: entity.name,
         information: resolved_info,
+    })
+}
+
+fn resolve_user_decl(user: UserDeclaration) -> Result<ResolvedUserDeclaration>{
+    let cert_path = &user.x509_cert;
+    let mut buf = Vec::new();
+    std::fs::File::open(&cert_path)?.read_to_end(&mut buf)?;
+    Ok(ResolvedUserDeclaration{
+        x509_cert: buf,
+        attributes: user.attributes,
+        permissions: user.permissions
+    })
+}
+
+fn resolve_relay_decl(relay: PeerRelayDeclaration) -> Result<ResolvedPeerRelayDeclaration>{
+    let cert_path = &relay.x509_cert;
+    let mut buf = Vec::new();
+    std::fs::File::open(&cert_path)?.read_to_end(&mut buf)?;
+    Ok(ResolvedPeerRelayDeclaration{
+        name: relay.name,
+        x509_cert: buf,
+        permissions: relay.permissions,
+        rest_endpoint: relay.rest_endpoint,
+        flight_endpoint: relay.flight_endpoint,
     })
 }

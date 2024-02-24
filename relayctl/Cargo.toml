@@ -9,8 +9,6 @@ edition.workspace = true
 [dependencies]
 mesh = {path = "../core"}
 arrow-schema = { workspace = true }
-diesel = { version = "2.1.3", features = ["postgres", "serde_json"] }
-diesel-async = { version="0.4.1", features = ["postgres"] }
 itertools = "0.11.0"
 object_store = "0.7.1"
 regex = "1.10.2"
@@ -21,3 +19,4 @@ url = "2.4.1"
 clap = {version="4.4.8", features = ["derive"] }
 serde_yaml = "0.9.27"
 walkdir = "2.4.0"
+reqwest = {workspace = true}

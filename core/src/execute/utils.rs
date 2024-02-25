@@ -156,7 +156,7 @@ pub async fn verify_query_origination_information(
                 x509_sha256: fingerprint.clone(),
                 x509_subject: subject_dn.clone(),
                 x509_issuer: issuer_dn,
-                attributes: UserAttributes { is_admin: false },
+                attributes: UserAttributes::new(),
             };
             let requesting_user = db.upsert_user_by_fingerprint(&user).await?;
             let originator = db

@@ -1,32 +1,35 @@
-name: lineitem
-information:
-  - name: tax_amount
-    arrow_dtype: Float64
-  - name: unitprice
-    arrow_dtype: Float64
-  - name: linenumber
-    arrow_dtype: Int64
-  - name: partkey
-    arrow_dtype: Int64
-  - name: suppkey
-    arrow_dtype: Int64
-  - name: orderkey
-    arrow_dtype: Int64
-  - name: quantity
-    arrow_dtype: Float64
-  - name: extendedprice
-    arrow_dtype: Float64
-  - name: discount_percent
-    arrow_dtype: Float64
-  - name: tax_percent
-    arrow_dtype: Float64
-  - name: commitdate
-    arrow_dtype: Date32
-  - name: receiptdate
-    arrow_dtype: Date32
-  - name: returnflag
-    arrow_dtype: Utf8
-  - name: linestatus
-    arrow_dtype: Utf8
-  - name: shipdate
-    arrow_dtype: Date32
+api_version: v1alpha1
+kind: Entity
+spec:
+  name: lineitem
+  information:
+    - name: tax_amount
+      arrow_dtype: Float64
+    - name: unitprice
+      arrow_dtype: Float64
+    - name: linenumber
+      arrow_dtype: Int64
+    - name: partkey
+      arrow_dtype: Int64
+    - name: suppkey
+      arrow_dtype: Int64
+    - name: orderkey
+      arrow_dtype: Int64
+    - name: quantity
+      arrow_dtype: Float64
+    - name: extendedprice
+      arrow_dtype: Float64
+    - name: discount_percent
+      arrow_dtype: Float64
+    - name: tax_percent
+      arrow_dtype: Float64
+    - name: commitdate
+      arrow_dtype: Date32
+    - name: receiptdate
+      arrow_dtype: Date32
+    - name: returnflag
+      arrow_dtype: Utf8
+    - name: linestatus
+      arrow_dtype: Utf8
+    - name: shipdate
+      arrow_dtype: Date32

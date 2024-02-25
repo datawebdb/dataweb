@@ -1,5 +1,7 @@
 use std::io::Read;
+use std::iter;
 
+use itertools::Itertools;
 use mesh::error::{MeshError, Result};
 
 use mesh::model::config_commands::entity::{
@@ -7,32 +9,22 @@ use mesh::model::config_commands::entity::{
 };
 use mesh::model::config_commands::relay::{PeerRelayDeclaration, ResolvedPeerRelayDeclaration};
 use mesh::model::config_commands::user::{ResolvedUserDeclaration, UserDeclaration};
-use mesh::model::config_commands::{ConfigCommand, ConfigObject, ResolvedConfigObject};
+use mesh::model::config_commands::{
+    ConfigCommand, ConfigObject, ResolvedConfigCommand, ResolvedConfigObject,
+};
 use reqwest::Client;
+use serde::Deserialize;
 
 pub(crate) async fn apply(
     path: std::path::PathBuf,
     mut client: Client,
     relay_endpoint: String,
 ) -> Result<()> {
-    for filepath in walk_directory(path) {
-        let command = match try_read_as_config_command(&filepath) {
-            Ok(cmd) => cmd,
+    for (filepath, cmd) in parse_directory(path)? {
+        match apply_command(cmd, &mut client, &relay_endpoint).await {
+            Ok(()) => println!("{} applied!", filepath),
             Err(e) => {
-                println!(
-                    "Unable to parse config file at {} with error {e}",
-                    filepath.to_string_lossy()
-                );
-                continue;
-            }
-        };
-        match apply_command(command, &mut client, &relay_endpoint).await {
-            Ok(()) => println!("{} applied!", filepath.to_string_lossy()),
-            Err(e) => {
-                println!(
-                    "Unable to apply config file at {} with error {e}",
-                    filepath.to_string_lossy()
-                );
+                println!("Unable to apply config file at {} with error {e}", filepath);
                 continue;
             }
         }
@@ -40,11 +32,43 @@ pub(crate) async fn apply(
     Ok(())
 }
 
-pub async fn apply_command(
-    command: ConfigCommand,
-    client: &mut Client,
-    relay_endpoint: &str,
-) -> Result<()> {
+/// Parses all objects found by recursively walking the provided path. Resolves the objects and
+/// yields them in order of their apply_precedence, see [ResolvedConfigObject] for details.
+fn parse_directory(
+    path: std::path::PathBuf,
+) -> Result<impl Iterator<Item = (String, ResolvedConfigCommand)>> {
+    let mut resolved_cmds = walk_directory(path)
+        .filter_map(|filepath| match try_read_as_config_command(&filepath) {
+            Ok(cmds) => Some(
+                iter::repeat(filepath.to_string_lossy().to_string())
+                    .zip(cmds)
+                    .collect_vec(),
+            ),
+            Err(e) => {
+                println!(
+                    "Unable to parse file at {} with error {e}",
+                    filepath.to_string_lossy()
+                );
+                None
+            }
+        })
+        .flatten()
+        .filter_map(|(filepath, cmd)| match resolve_command(cmd) {
+            Ok(resolved) => Some((filepath, resolved)),
+            Err(e) => {
+                println!(
+                    "Unable to resolve config object {} with error {e}",
+                    filepath
+                );
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    resolved_cmds.sort_by_key(|(_, cmd)| cmd.config_object.apply_precedence());
+    Ok(resolved_cmds.into_iter())
+}
+
+fn resolve_command(command: ConfigCommand) -> Result<ResolvedConfigCommand> {
     let config_object = match command.config_object {
         ConfigObject::Entity(entity) => ResolvedConfigObject::Entity(resolve_entity_decl(entity)?),
         ConfigObject::PeerRelay(relay) => {
@@ -60,15 +84,26 @@ pub async fn apply_command(
         }
     };
 
+    Ok(ResolvedConfigCommand {
+        api_version: command.api_version,
+        config_object,
+    })
+}
+
+pub async fn apply_command(
+    command: ResolvedConfigCommand,
+    client: &mut Client,
+    relay_endpoint: &str,
+) -> Result<()> {
     let r = client
         .post(format!("{relay_endpoint}/admin/apply"))
-        .json(&config_object)
+        .json(&command)
         .send()
         .await
         .map_err(|e| MeshError::RemoteError(e.to_string()))?;
 
     match r.text().await {
-        Ok(s) => println!("Response from remote: {s}"),
+        Ok(_) => (),
         Err(e) => {
             println!("Failed to parse response as text with e {e}");
         }
@@ -77,10 +112,23 @@ pub async fn apply_command(
     Ok(())
 }
 
-fn try_read_as_config_command(path: &std::path::Path) -> Result<ConfigCommand> {
+fn try_read_as_config_command(path: &std::path::Path) -> Result<impl Iterator<Item=ConfigCommand>> {
     let f = std::fs::File::open(path)?;
     let reader = std::io::BufReader::new(f);
-    serde_yaml::from_reader(reader).map_err(|e| MeshError::SerDe(e.to_string()))
+    let filename = path.to_string_lossy().to_string();
+    let mut obj = vec![];
+    for document in serde_yaml::Deserializer::from_reader(reader){
+        match serde_yaml::with::singleton_map_recursive::deserialize(document){
+            Ok(cmd) => obj.push(cmd),
+            Err(e) => {
+                println!("Unable to deserialize object as YAML from file {} with error {}",
+                 filename,
+                 e,
+                 );
+            }
+        }
+    }
+    Ok(obj.into_iter())
 }
 
 fn walk_directory(dir: std::path::PathBuf) -> impl Iterator<Item = std::path::PathBuf> {
@@ -95,7 +143,6 @@ fn walk_directory(dir: std::path::PathBuf) -> impl Iterator<Item = std::path::Pa
         })
         .map(|r| {
             let entry = r.unwrap();
-            println!("Processing file: {:?}", entry.path());
             entry.path().to_owned()
         })
 }
@@ -124,7 +171,7 @@ fn resolve_entity_decl(entity: EntityDeclaration) -> Result<ResolvedEntityDeclar
 }
 
 fn resolve_user_decl(user: UserDeclaration) -> Result<ResolvedUserDeclaration> {
-    let cert_path = &user.x509_cert;
+    let cert_path = &user.x509_cert_file;
     let mut buf = Vec::new();
     std::fs::File::open(cert_path)?.read_to_end(&mut buf)?;
     Ok(ResolvedUserDeclaration {
@@ -135,7 +182,7 @@ fn resolve_user_decl(user: UserDeclaration) -> Result<ResolvedUserDeclaration> {
 }
 
 fn resolve_relay_decl(relay: PeerRelayDeclaration) -> Result<ResolvedPeerRelayDeclaration> {
-    let cert_path = &relay.x509_cert;
+    let cert_path = &relay.x509_cert_file;
     let mut buf = Vec::new();
     std::fs::File::open(cert_path)?.read_to_end(&mut buf)?;
     Ok(ResolvedPeerRelayDeclaration {

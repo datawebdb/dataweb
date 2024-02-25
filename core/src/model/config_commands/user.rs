@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::model::user::UserAttributes;
 use serde::{Deserialize, Serialize};
 
 use super::no_permission_decl;
@@ -7,15 +8,15 @@ use super::no_permission_decl;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ResolvedUserDeclaration {
     pub x509_cert: Vec<u8>,
-    pub attributes: HashMap<String, String>,
+    pub attributes: UserAttributes,
     #[serde(default = "no_permission_decl")]
     pub permissions: Option<Vec<PermissionsDecl>>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct UserDeclaration {
-    pub x509_cert: String,
-    pub attributes: HashMap<String, String>,
+    pub x509_cert_file: String,
+    pub attributes: UserAttributes,
     #[serde(default = "no_permission_decl")]
     pub permissions: Option<Vec<PermissionsDecl>>,
 }

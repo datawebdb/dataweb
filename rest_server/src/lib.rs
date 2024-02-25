@@ -135,7 +135,7 @@ async fn register_default_admin(cert_pem: String, pool: &DbPool) {
         x509_sha256,
         x509_subject,
         x509_issuer,
-        attributes: UserAttributes { is_admin: true },
+        attributes: UserAttributes::new().with_is_admin(true),
     };
 
     db.upsert_user_by_fingerprint(&newuser)

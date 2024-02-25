@@ -1,8 +1,8 @@
-use std::{env, io::Read};
+use std::{collections::HashMap, env, fs::File, io::Read};
 
 use clap::{Parser, Subcommand};
 
-use mesh::error::Result;
+use mesh::{error::Result, model::{config_commands::{local_data::{DataConnectionsDeclaration, DataFieldsDeclaration, DataSourcesDeclaration, ResolvedDataConnectionsDeclaration}, remote_mapping::{EntityMapDecl, PeerRelayMappingsDeclaration, RemoteInfoMappingsDeclaration, RemoteMappingsDeclaration}, ConfigCommand, ConfigObject, DefaultPermissionDeclaration, ResolvedConfigCommand, ResolvedConfigObject}, data_stores::{options::{trino::{TrinoConnection, TrinoSource}, ConnectionOptions, SourceOptions}, DataSource}, mappings::Transformation, query::{InfoSubstitution, SubstitutionBlocks}}};
 use process::apply;
 
 mod process;
@@ -21,7 +21,7 @@ enum Command {
     Apply {
         /// Path to the config command. Can be a directory of YAML files or a single YAML file.
         #[clap(long, short = 'f')]
-        path: std::path::PathBuf,
+        filepath: std::path::PathBuf,
     },
 }
 
@@ -32,15 +32,29 @@ fn read_identity() -> Result<reqwest::Identity> {
 
     let client_cert_file = env::var("CLIENT_CERT_FILE").expect("CLIENT_CERT_FILE must be set");
     let client_key_file = env::var("CLIENT_KEY_FILE").expect("CLIENT_KEY_FILE must be set");
-    std::fs::File::open(client_cert_file)?.read_to_end(&mut iden_pem)?;
-    std::fs::File::open(client_key_file)?.read_to_end(&mut iden_pem)?;
+
+    std::fs::File::open(&client_cert_file)
+        .expect(&format!("Could not open {client_cert_file}"))
+        .read_to_end(&mut iden_pem)
+        .expect(&format!("Could not read {client_cert_file}"));
+
+    std::fs::File::open(&client_key_file)
+        .expect(&format!("Could not open {client_key_file}"))
+        .read_to_end(&mut iden_pem)
+        .expect(&format!("Could not read {client_key_file}"));
+
     Ok(reqwest::Identity::from_pem(&iden_pem).expect("could not parse client cert and key"))
 }
 
 fn get_reqw_client() -> Result<reqwest::Client> {
     let ca_cert_file = env::var("CA_CERT_FILE").expect("CA_CERT_FILE must be set");
     let mut cacert = Vec::new();
-    std::fs::File::open(ca_cert_file)?.read_to_end(&mut cacert)?;
+
+    std::fs::File::open(&ca_cert_file)
+        .expect(&format!("Could not open {ca_cert_file}"))
+        .read_to_end(&mut cacert)
+        .expect(&format!("Could not read {ca_cert_file}"));
+
     let identity = read_identity()?;
     let mut client = reqwest::Client::builder()
         .use_rustls_tls()
@@ -53,13 +67,14 @@ fn get_reqw_client() -> Result<reqwest::Client> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+
     let args = Relayctl::parse();
 
     match args.command {
-        Command::Apply { path } => {
+        Command::Apply { filepath } => {
             let client = get_reqw_client()?;
             let relay_endpoint = env::var("RELAY_ENDPOINT").expect("RELAY_ENDPOINT must be set");
-            apply(path, client, relay_endpoint).await?
+            apply(filepath, client, relay_endpoint).await?
         }
     }
 

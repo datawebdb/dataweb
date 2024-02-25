@@ -7,7 +7,7 @@ pub struct PeerRelayDeclaration {
     pub name: String,
     pub rest_endpoint: String,
     pub flight_endpoint: String,
-    pub x509_cert: String,
+    pub x509_cert_file: String,
     #[serde(default = "no_permission_decl")]
     pub permissions: Option<Vec<PermissionsDecl>>,
 }

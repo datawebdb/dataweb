@@ -22,6 +22,7 @@ pub mod user;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ResolvedConfigCommand {
     pub api_version: String,
+    #[serde(flatten)]
     pub config_object: ResolvedConfigObject,
 }
 
@@ -29,13 +30,14 @@ pub struct ResolvedConfigCommand {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ConfigCommand {
     pub api_version: String,
+    #[serde(flatten)]
     pub config_object: ConfigObject,
 }
 
 /// These are declarative, non relational representations of objects that configure
-/// the behavior of the Relay. Admins maintain these definitions and the Relay is responsible
-/// for translating them to the relational model equivalents and updating the database to be in
-/// line with the declared state.
+/// the behavior of the Relay. The Resolved version of each [ConfigObject] is suitable
+/// for transfer over the network to the server. For example, local filepaths (on the client),
+/// have been replaced with the binary contexts of the file.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 #[serde(tag = "kind", content = "spec")]
 pub enum ResolvedConfigObject {
@@ -45,6 +47,22 @@ pub enum ResolvedConfigObject {
     PeerRelay(ResolvedPeerRelayDeclaration),
     RemoteMapping(ResolvedRemoteMappingsDeclaration),
     User(ResolvedUserDeclaration),
+}
+
+impl ResolvedConfigObject {
+    /// Objects with a lower precedence should be applied first. The returned value
+    /// holds no signficance other than if self.apply_precendence()<other.apply_precedence
+    /// then self should be applied before other.
+    pub fn apply_precedence(&self) -> usize {
+        match self {
+            Self::Entity(_) => 1,
+            Self::LocalData(_) => 2,
+            Self::LocalMapping(_) => 3,
+            Self::PeerRelay(_) => 4,
+            Self::RemoteMapping(_) => 5,
+            Self::User(_) => 6,
+        }
+    }
 }
 
 /// These are declarative, non relational representations of objects that configure

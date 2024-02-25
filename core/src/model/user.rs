@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::schema::users;
 
 use diesel::prelude::*;
@@ -30,7 +32,38 @@ pub struct User {
 pub struct UserAttributes {
     /// Controls whether this user should be permitted access to configure the [Relay][crate::model::relay::Relay]
     /// via the /admin endpoints.
+    #[serde(default = "default_admin")]
     pub is_admin: bool,
+    /// Arbitrary, user defined attributes.
+    #[serde(default = "default_attributes")]
+    pub misc: HashMap<String, String>,
+}
+
+fn default_admin() -> bool{
+    false
+}
+
+fn default_attributes() -> HashMap<String, String>{
+    HashMap::new()
+}
+
+impl UserAttributes {
+    pub fn new() -> Self {
+        Self {
+            is_admin: false,
+            misc: HashMap::new(),
+        }
+    }
+
+    pub fn with_is_admin(mut self, is_admin: bool) -> Self {
+        self.is_admin = is_admin;
+        self
+    }
+
+    pub fn with_attributes(mut self, attributes: HashMap<String, String>) -> Self {
+        self.misc = attributes;
+        self
+    }
 }
 
 /// Used to create a new [User] object in the database.

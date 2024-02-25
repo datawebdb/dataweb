@@ -85,7 +85,7 @@ services:
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
       DIRECT_TLS: true
       RUST_LOG: 4
-      DEAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
+      DEFAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
   na-data-relay: 
     network_mode: "host"
     image: single_bin_deployment
@@ -112,7 +112,7 @@ services:
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
       DIRECT_TLS: true
       RUST_LOG: 4
-      DEAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
+      DEFAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
   global-data-relay-proxy:
     network_mode: "host"
     image: global_data_relay_proxy
@@ -142,7 +142,7 @@ services:
       DIRECT_TLS: false
       CLIENT_CERT_HEADER: X-CLIENT-CERT
       RUST_LOG: 4
-      DEAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
+      DEFAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
   emea-data-relay: 
     network_mode: "host"
     image: single_bin_deployment
@@ -168,7 +168,7 @@ services:
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
       DIRECT_TLS: true
       RUST_LOG: 4
-      DEAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
+      DEFAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
   apac-data-relay: 
     network_mode: "host"
     image: single_bin_deployment
@@ -194,4 +194,4 @@ services:
       MIN_PARALLELISM_PER_QUERY_WORKER: 16
       DIRECT_TLS: true
       RUST_LOG: 4
-      DEAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem
+      DEFAULT_RELAY_ADMIN: ${PWD}/client_cert_admin.pem

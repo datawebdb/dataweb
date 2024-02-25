@@ -1,22 +1,25 @@
-entity_name: customer
-mappings:
-  - data_con_name: trino_tpch
-    source_mappings:
-    - data_source_name: tpch.tiny.customer
-      field_mappings:
-        - field: custkey
-          info: custkey
-        - field: name
-          info: name
-        - field: address
-          info: address
-        - field: nationkey
-          info: nationkey
-        - field: phone
-          info: phone
-        - field: acctbal
-          info: acctbal
-        - field: mktsegment
-          info: mktsegment
-        - field: comment
-          info: comment
+api_version: v1alpha1
+kind: LocalMapping
+spec:
+  entity_name: customer
+  mappings:
+    - data_con_name: trino_tpch
+      source_mappings:
+      - data_source_name: tpch.tiny.customer
+        field_mappings:
+          - field: custkey
+            info: custkey
+          - field: name
+            info: name
+          - field: address
+            info: address
+          - field: nationkey
+            info: nationkey
+          - field: phone
+            info: phone
+          - field: acctbal
+            info: acctbal
+          - field: mktsegment
+            info: mktsegment
+          - field: comment
+            info: comment

@@ -14,6 +14,7 @@ pub struct ResolvedUserDeclaration {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct UserDeclaration {
     pub x509_cert_file: String,
+    #[serde(default)]
     pub attributes: UserAttributes,
     #[serde(default = "no_permission_decl")]
     pub permissions: Option<Vec<PermissionsDecl>>,

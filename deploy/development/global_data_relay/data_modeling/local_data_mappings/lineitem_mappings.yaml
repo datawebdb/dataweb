@@ -1,36 +1,39 @@
-entity_name: lineitem
-mappings:
-  - data_con_name: trino_tpch
-    source_mappings:
-    - data_source_name: tpch.tiny.lineitem
-      field_mappings:
-        - field: unitprice
-          info: unitprice
-        - field: linenumber
-          info: linenumber
-        - field: partkey
-          info: partkey
-        - field: suppkey
-          info: suppkey
-        - field: orderkey
-          info: orderkey
-        - field: quantity
-          info: quantity
-        - field: extendedprice
-          info: extendedprice
-        - field: discount
-          info: discount
-        - field: tax
-          info: tax
-        - field: commitdate
-          info: commitdate
-        - field: receiptdate
-          info: receiptdate
-        - field: returnflag
-          info: returnflag
-        - field: linestatus
-          info: linestatus
-        - field: shipdate
-          info: shipdate
-          
-      
+api_version: v1alpha1
+kind: LocalMapping
+spec:
+  entity_name: lineitem
+  mappings:
+    - data_con_name: trino_tpch
+      source_mappings:
+      - data_source_name: tpch.tiny.lineitem
+        field_mappings:
+          - field: unitprice
+            info: unitprice
+          - field: linenumber
+            info: linenumber
+          - field: partkey
+            info: partkey
+          - field: suppkey
+            info: suppkey
+          - field: orderkey
+            info: orderkey
+          - field: quantity
+            info: quantity
+          - field: extendedprice
+            info: extendedprice
+          - field: discount
+            info: discount
+          - field: tax
+            info: tax
+          - field: commitdate
+            info: commitdate
+          - field: receiptdate
+            info: receiptdate
+          - field: returnflag
+            info: returnflag
+          - field: linestatus
+            info: linestatus
+          - field: shipdate
+            info: shipdate
+            
+        

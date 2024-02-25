@@ -1,23 +1,26 @@
-entity_name: orders
-mappings:
-  - relay_name: global_data_relay
-    remote_entity_name: orders
-    relay_mappings:
-      - local_info: orderkey
-        info_mapped_name: orderkey
-      - local_info: custkey
-        info_mapped_name: custkey
-      - local_info: orderstatus
-        info_mapped_name: orderstatus
-      - local_info: totalprice
-        info_mapped_name: totalprice
-      - local_info: orderdate
-        info_mapped_name: orderdate
-      - local_info: orderpriority
-        info_mapped_name: orderpriority
-      - local_info: clerk
-        info_mapped_name: clerk
-      - local_info: shippriority
-        info_mapped_name: shippriority
-      - local_info: comment
-        info_mapped_name: comment
+api_version: v1alpha1
+kind: RemoteMapping
+spec:
+  entity_name: orders
+  mappings:
+    - relay_name: global_data_relay
+      remote_entity_name: orders
+      relay_mappings:
+        - local_info: orderkey
+          info_mapped_name: orderkey
+        - local_info: custkey
+          info_mapped_name: custkey
+        - local_info: orderstatus
+          info_mapped_name: orderstatus
+        - local_info: totalprice
+          info_mapped_name: totalprice
+        - local_info: orderdate
+          info_mapped_name: orderdate
+        - local_info: orderpriority
+          info_mapped_name: orderpriority
+        - local_info: clerk
+          info_mapped_name: clerk
+        - local_info: shippriority
+          info_mapped_name: shippriority
+        - local_info: comment
+          info_mapped_name: comment

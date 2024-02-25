@@ -1,4 +1,7 @@
-- x509_cert_file: users/client_cert_all_access.pem
+api_version: v1alpha1
+kind: User
+spec:
+  x509_cert_file: users/client_cert_all_access.pem
   permissions:
     - data_con_name: trino_tpch
       source_permissions:
@@ -14,7 +17,7 @@
             - tax
             - commitdate
             - receiptdate
-          allowed_rows: true
+          allowed_rows: "true"
     - data_con_name: csv_tpch
       source_permissions:
         - data_source_name: csv_tpch
@@ -30,5 +33,9 @@
             - returnflag
             - linestatus
             - shipdate
-          allowed_rows: true
-- x509_cert_file: users/client_cert_default_access.pem
+          allowed_rows: "true"
+---
+api_version: v1alpha1
+kind: User
+spec:
+  x509_cert_file: users/client_cert_default_access.pem

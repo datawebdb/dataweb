@@ -1,20 +1,39 @@
-- name: na_data_relay
+api_version: v1alpha1
+kind: PeerRelay
+spec:
+  name: na_data_relay
   rest_endpoint: "https://localhost:8447"
   flight_endpoint: "https://localhost:50055"
   x509_cert_file: ./deploy/development/na_data_relay/client_cert.pem
-- name: emea_data_relay
+---
+api_version: v1alpha1
+kind: PeerRelay
+spec:
+  name: emea_data_relay
   rest_endpoint: "https://localhost:8444"
   flight_endpoint: "https://localhost:50052"
   x509_cert_file: ./deploy/development/emea_data_relay/client_cert.pem
-- name: apac_data_relay
+---
+api_version: v1alpha1
+kind: PeerRelay
+spec:
+  name: apac_data_relay
   rest_endpoint: "https://localhost:8445"
   flight_endpoint: "https://localhost:50053"
   x509_cert_file: ./deploy/development/apac_data_relay/client_cert.pem
-- name: global_data_relay
+---
+api_version: v1alpha1
+kind: PeerRelay
+spec:
+  name: global_data_relay
   rest_endpoint: "https://localhost:9443"
   flight_endpoint: "https://localhost:51051"
   x509_cert_file: ./deploy/development/global_data_relay/client_cert.pem
-- name: offline_data_relay #simulates the effect of a relay which is offline, the rest of the network should function fine
+---
+api_version: v1alpha1
+kind: PeerRelay
+spec:
+  name: offline_data_relay #simulates the effect of a relay which is offline, the rest of the network should function fine
   rest_endpoint: "https://offline-data-relay:8443"
   flight_endpoint: "https://offline-data-relay:5051"
   x509_cert_file: ./deploy/development/global_data_relay/offline_cert.pem

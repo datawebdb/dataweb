@@ -137,7 +137,8 @@ This abstract model can then be mapped to physical data models, i.e. actual phys
 
 ```yaml
 name: trino_tpch
-connection_options: !Trino
+connection_options: 
+        Trino: {}
   user: trino
   password: '' #<-- Note that this is the environment variable that will hold the password, not the plaintext password itself
   host: localhost
@@ -146,7 +147,8 @@ connection_options: !Trino
 data_sources:
   - name: tpch.tiny.customer
     source_sql: tpch.tiny.customer
-    source_options: !Trino
+    source_options: 
+        Trino: {}
     fields:
       - name: custkey
         path: custkey
@@ -258,7 +260,7 @@ User permissions can also be declared. This is only required if an individual us
             - acctbal
             - mktsegment
             - comment
-          allowed_rows: true
+          allowed_rows: "true"
 ```
 
 Once all YAML files are defined, a Relay can be configured with them by executing:

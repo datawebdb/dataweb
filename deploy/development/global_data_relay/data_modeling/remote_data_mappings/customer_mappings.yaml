@@ -1,59 +1,62 @@
-entity_name: customer
-mappings:
-  - relay_name: na_data_relay
-    remote_entity_name: customer
-    relay_mappings:
-      - local_info: custkey
-        info_mapped_name: custkey
-      - local_info: name
-        info_mapped_name: name
-      - local_info: address
-        info_mapped_name: address
-      - local_info: nationkey
-        info_mapped_name: nationkey
-      - local_info: phone
-        info_mapped_name: phone
-      - local_info: acctbal
-        info_mapped_name: acctbal
-      - local_info: mktsegment
-        info_mapped_name: mktsegment
-      - local_info: comment
-        info_mapped_name: comment
-  - relay_name: apac_data_relay
-    remote_entity_name: customer
-    relay_mappings:
-      - local_info: custkey
-        info_mapped_name: custkey
-      - local_info: name
-        info_mapped_name: name
-      - local_info: address
-        info_mapped_name: address
-      - local_info: nationkey
-        info_mapped_name: nationkey
-      - local_info: phone
-        info_mapped_name: phone
-      - local_info: acctbal
-        info_mapped_name: acctbal
-      - local_info: mktsegment
-        info_mapped_name: mktsegment
-      - local_info: comment
-        info_mapped_name: comment
-  - relay_name: emea_data_relay
-    remote_entity_name: customer
-    relay_mappings:
-      - local_info: custkey
-        info_mapped_name: custkey
-      - local_info: name
-        info_mapped_name: name
-      - local_info: address
-        info_mapped_name: address
-      - local_info: nationkey
-        info_mapped_name: nationkey
-      - local_info: phone
-        info_mapped_name: phone
-      - local_info: acctbal
-        info_mapped_name: acctbal
-      - local_info: mktsegment
-        info_mapped_name: mktsegment
-      - local_info: comment
-        info_mapped_name: comment
+api_version: v1alpha1
+kind: RemoteMapping
+spec:
+  entity_name: customer
+  mappings:
+    - relay_name: na_data_relay
+      remote_entity_name: customer
+      relay_mappings:
+        - local_info: custkey
+          info_mapped_name: custkey
+        - local_info: name
+          info_mapped_name: name
+        - local_info: address
+          info_mapped_name: address
+        - local_info: nationkey
+          info_mapped_name: nationkey
+        - local_info: phone
+          info_mapped_name: phone
+        - local_info: acctbal
+          info_mapped_name: acctbal
+        - local_info: mktsegment
+          info_mapped_name: mktsegment
+        - local_info: comment
+          info_mapped_name: comment
+    - relay_name: apac_data_relay
+      remote_entity_name: customer
+      relay_mappings:
+        - local_info: custkey
+          info_mapped_name: custkey
+        - local_info: name
+          info_mapped_name: name
+        - local_info: address
+          info_mapped_name: address
+        - local_info: nationkey
+          info_mapped_name: nationkey
+        - local_info: phone
+          info_mapped_name: phone
+        - local_info: acctbal
+          info_mapped_name: acctbal
+        - local_info: mktsegment
+          info_mapped_name: mktsegment
+        - local_info: comment
+          info_mapped_name: comment
+    - relay_name: emea_data_relay
+      remote_entity_name: customer
+      relay_mappings:
+        - local_info: custkey
+          info_mapped_name: custkey
+        - local_info: name
+          info_mapped_name: name
+        - local_info: address
+          info_mapped_name: address
+        - local_info: nationkey
+          info_mapped_name: nationkey
+        - local_info: phone
+          info_mapped_name: phone
+        - local_info: acctbal
+          info_mapped_name: acctbal
+        - local_info: mktsegment
+          info_mapped_name: mktsegment
+        - local_info: comment
+          info_mapped_name: comment

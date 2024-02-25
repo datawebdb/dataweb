@@ -1,5 +1,6 @@
 use std::any::Any;
 
+use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::SocketAddr;
@@ -15,17 +16,21 @@ use diesel_async::AsyncPgConnection;
 
 use mesh::conf::EnvConfigSettings;
 
+use mesh::crud::PgDb;
 use mesh::execute::result_manager::ResultManager;
 use mesh::messaging::MessageBrokerOptions;
 use mesh::model::data_stores::options::file_directory::FileDirectorySource;
 use mesh::model::data_stores::options::SourceFileType;
 
 use actix_tls::accept::rustls_0_21::{reexports::ServerConfig, TlsStream};
+use mesh::model::user::{NewUser, UserAttributes};
 use mesh::pki::parse_certificate;
 use rustls::server::AllowAnyAnonymousOrAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use tracing::info;
 
+mod admin;
 mod error;
 mod query;
 mod utils;
@@ -117,6 +122,27 @@ fn rustls_config(
     Ok((cert_chain.remove(0), config))
 }
 
+async fn register_default_admin(cert_pem: String, pool: &DbPool) {
+    let mut db = PgDb::try_from_pool(pool)
+        .await
+        .expect("Could not get connection from pool");
+    let cert = &mut BufReader::new(
+        File::open(&cert_pem).unwrap_or_else(|_| panic!("Unable to open {} with error:", cert_pem)),
+    );
+    let cert = Certificate(certs(cert).unwrap().remove(0));
+    let (x509_sha256, x509_subject, x509_issuer) = parse_certificate(&cert).unwrap();
+    let newuser = NewUser {
+        x509_sha256,
+        x509_subject,
+        x509_issuer,
+        attributes: UserAttributes::new().with_is_admin(true),
+    };
+
+    db.upsert_user_by_fingerprint(&newuser)
+        .await
+        .expect("Failed to register default_admin");
+}
+
 pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::Result<()> {
     let env_config = EnvConfigSettings::init();
 
@@ -155,6 +181,11 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
         .await
         .expect("pool failed to start");
 
+    if let Ok(default_admin) = env::var("DEFAULT_RELAY_ADMIN") {
+        info!("Attempting to register default_admin user with identity {default_admin}");
+        register_default_admin(default_admin, &pool).await;
+    }
+
     let local_relay_fingerprint = Arc::new(fingerprint);
     let message_options = match in_memory_msg_opts {
         Some(opts) => opts,
@@ -168,8 +199,9 @@ pub async fn run(in_memory_msg_opts: Option<MessageBrokerOptions>) -> std::io::R
             .app_data(web::Data::new(result_manager.clone()))
             .app_data(web::Data::new(local_relay_fingerprint.clone()))
             .app_data(web::Data::new(env_config.client_cert_header.clone()))
-            .service(query::query)
-            .service(query::get_query_results)
+            .service(query::route::query)
+            .service(query::route::get_query_results)
+            .service(admin::route::apply)
     });
 
     if env_config.direct_tls {

@@ -1,29 +1,32 @@
-name: lineitem
-information:
-  - name: linenumber
-    arrow_dtype: Null
-  - name: partkey
-    arrow_dtype: Null
-  - name: suppkey
-    arrow_dtype: Null
-  - name: orderkey
-    arrow_dtype: Null
-  - name: quantity
-    arrow_dtype: Null
-  - name: extendedprice
-    arrow_dtype: Null
-  - name: discount
-    arrow_dtype: Null
-  - name: tax
-    arrow_dtype: Null
-  - name: commitdate
-    arrow_dtype: Null
-  - name: receiptdate
-    arrow_dtype: Null
-  - name: returnflag
-    arrow_dtype: Null
-  - name: linestatus
-    arrow_dtype: Null
-  - name: shipdate
-    arrow_dtype: Null
+api_version: v1alpha1
+kind: Entity
+spec:
+  name: lineitem
+  information:
+    - name: linenumber
+      arrow_dtype: Int64
+    - name: partkey
+      arrow_dtype: Int64
+    - name: suppkey
+      arrow_dtype: Int64
+    - name: orderkey
+      arrow_dtype: Int64
+    - name: quantity
+      arrow_dtype: Float64
+    - name: extendedprice
+      arrow_dtype: Float64
+    - name: discount
+      arrow_dtype: Float64
+    - name: tax
+      arrow_dtype: Float64
+    - name: commitdate
+      arrow_dtype: Date32
+    - name: receiptdate
+      arrow_dtype: Date32
+    - name: returnflag
+      arrow_dtype: Utf8
+    - name: linestatus
+      arrow_dtype: Utf8
+    - name: shipdate
+      arrow_dtype: Date32
 

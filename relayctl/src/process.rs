@@ -13,7 +13,6 @@ use mesh::model::config_commands::{
     ConfigCommand, ConfigObject, ResolvedConfigCommand, ResolvedConfigObject,
 };
 use reqwest::Client;
-use serde::Deserialize;
 
 pub(crate) async fn apply(
     path: std::path::PathBuf,
@@ -112,19 +111,21 @@ pub async fn apply_command(
     Ok(())
 }
 
-fn try_read_as_config_command(path: &std::path::Path) -> Result<impl Iterator<Item=ConfigCommand>> {
+fn try_read_as_config_command(
+    path: &std::path::Path,
+) -> Result<impl Iterator<Item = ConfigCommand>> {
     let f = std::fs::File::open(path)?;
     let reader = std::io::BufReader::new(f);
     let filename = path.to_string_lossy().to_string();
     let mut obj = vec![];
-    for document in serde_yaml::Deserializer::from_reader(reader){
-        match serde_yaml::with::singleton_map_recursive::deserialize(document){
+    for document in serde_yaml::Deserializer::from_reader(reader) {
+        match serde_yaml::with::singleton_map_recursive::deserialize(document) {
             Ok(cmd) => obj.push(cmd),
             Err(e) => {
-                println!("Unable to deserialize object as YAML from file {} with error {}",
-                 filename,
-                 e,
-                 );
+                println!(
+                    "Unable to deserialize object as YAML from file {} with error {}",
+                    filename, e,
+                );
             }
         }
     }

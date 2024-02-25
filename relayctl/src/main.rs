@@ -1,8 +1,8 @@
-use std::{collections::HashMap, env, fs::File, io::Read};
+use std::{env, io::Read};
 
 use clap::{Parser, Subcommand};
 
-use mesh::{error::Result, model::{config_commands::{local_data::{DataConnectionsDeclaration, DataFieldsDeclaration, DataSourcesDeclaration, ResolvedDataConnectionsDeclaration}, remote_mapping::{EntityMapDecl, PeerRelayMappingsDeclaration, RemoteInfoMappingsDeclaration, RemoteMappingsDeclaration}, ConfigCommand, ConfigObject, DefaultPermissionDeclaration, ResolvedConfigCommand, ResolvedConfigObject}, data_stores::{options::{trino::{TrinoConnection, TrinoSource}, ConnectionOptions, SourceOptions}, DataSource}, mappings::Transformation, query::{InfoSubstitution, SubstitutionBlocks}}};
+use mesh::error::Result;
 use process::apply;
 
 mod process;
@@ -34,14 +34,14 @@ fn read_identity() -> Result<reqwest::Identity> {
     let client_key_file = env::var("CLIENT_KEY_FILE").expect("CLIENT_KEY_FILE must be set");
 
     std::fs::File::open(&client_cert_file)
-        .expect(&format!("Could not open {client_cert_file}"))
+        .unwrap_or_else(|e| panic!("Could not open {client_cert_file} with error {e}"))
         .read_to_end(&mut iden_pem)
-        .expect(&format!("Could not read {client_cert_file}"));
+        .unwrap_or_else(|e| panic!("Could not read {client_cert_file} with error {e}"));
 
     std::fs::File::open(&client_key_file)
-        .expect(&format!("Could not open {client_key_file}"))
+        .unwrap_or_else(|e| panic!("Could not open {client_key_file} with error {e}"))
         .read_to_end(&mut iden_pem)
-        .expect(&format!("Could not read {client_key_file}"));
+        .unwrap_or_else(|e| panic!("Could not read {client_key_file} with error {e}"));
 
     Ok(reqwest::Identity::from_pem(&iden_pem).expect("could not parse client cert and key"))
 }
@@ -51,9 +51,9 @@ fn get_reqw_client() -> Result<reqwest::Client> {
     let mut cacert = Vec::new();
 
     std::fs::File::open(&ca_cert_file)
-        .expect(&format!("Could not open {ca_cert_file}"))
+        .unwrap_or_else(|e| panic!("Could not open {ca_cert_file} with error {e}"))
         .read_to_end(&mut cacert)
-        .expect(&format!("Could not read {ca_cert_file}"));
+        .unwrap_or_else(|e| panic!("Could not read {ca_cert_file} with error {e}"));
 
     let identity = read_identity()?;
     let mut client = reqwest::Client::builder()
@@ -67,7 +67,6 @@ fn get_reqw_client() -> Result<reqwest::Client> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     let args = Relayctl::parse();
 
     match args.command {

@@ -28,20 +28,25 @@ async fn apply(
 
     let mut db = PgDb::try_from_pool(&pool).await?;
     let maybe_user = db.get_user_by_x509_fingerprint(&fingerprint).await;
-    let authorized =
-    if let Ok(user)=maybe_user{
-        if user.attributes.is_admin{
+    let authorized = if let Ok(user) = maybe_user {
+        if user.attributes.is_admin {
             true
-        } else{
-            info!("User {}, lacks is_admin: true attribute, denying access to /admin.", fingerprint);
+        } else {
+            info!(
+                "User {}, lacks is_admin: true attribute, denying access to /admin.",
+                fingerprint
+            );
             false
         }
-    } else{
-        info!("User {}, not registered, denying access to /admin.", fingerprint);
+    } else {
+        info!(
+            "User {}, not registered, denying access to /admin.",
+            fingerprint
+        );
         false
     };
 
-    if !authorized{
+    if !authorized {
         return Err(RelayError::new(
             "User is unauthorized for adminstrative actions!",
         ));

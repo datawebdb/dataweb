@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::model::user::UserAttributes;
 use serde::{Deserialize, Serialize};
 

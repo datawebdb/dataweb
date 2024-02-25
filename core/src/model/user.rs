@@ -39,11 +39,11 @@ pub struct UserAttributes {
     pub misc: HashMap<String, String>,
 }
 
-fn default_admin() -> bool{
+fn default_admin() -> bool {
     false
 }
 
-fn default_attributes() -> HashMap<String, String>{
+fn default_attributes() -> HashMap<String, String> {
     HashMap::new()
 }
 
@@ -63,6 +63,12 @@ impl UserAttributes {
     pub fn with_attributes(mut self, attributes: HashMap<String, String>) -> Self {
         self.misc = attributes;
         self
+    }
+}
+
+impl Default for UserAttributes {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

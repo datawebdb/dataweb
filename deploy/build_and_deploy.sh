@@ -90,7 +90,7 @@ find . -type f -name "*.yaml" -print0 | xargs -0 chmod 744
 docker compose -f ./deploy/compose.yaml up -d --force-recreate
 
 #give some time for the database to fully come up before attempting to configure
-sleep 5
+sleep 10
 
 deploy/development/global_data_relay/configure_global_data_relay.sh 
 deploy/development/na_data_relay/configure_na_data_relay.sh 

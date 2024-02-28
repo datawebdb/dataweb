@@ -2,6 +2,9 @@ use std::collections::HashMap;
 
 use datafusion::sql::sqlparser::ast::{GroupByExpr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins, WildcardAdditionalOptions};
 use datafusion::sql::sqlparser::ast::{visit_relations, visit_relations_mut};
+use datafusion::sql::sqlparser::dialect::AnsiDialect;
+use datafusion::sql::sqlparser::parser::Parser;
+use object_store::local;
 
 use crate::error::Result;
 
@@ -53,57 +56,42 @@ pub(crate) fn map_sql(
     Ok(statement)
 }
 
+/// Modifies [Statement] in place, rewriting references to an [Entity] to be in terms of the passed
+/// [DataSource]
 fn apply_source_substitutions(
     statement: &mut Statement,
     source: &DataSource,
     permission: &SourcePermission,
-){
+) -> Result<()>{
+    let source_sql = &source.source_sql;
+    let mut parser = Parser::new(&AnsiDialect {})
+        .try_with_sql(&format!("({source_sql})"))
+        .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
+    let local_table = parser.parse_table_factor()
+        .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
+
+    println!("LocalTable: {local_table:?}");
+
     visit_table_factor_mut(statement, |table| {
         match table{
-            TableFactor::Table { name, alias, args, with_hints, version, partitions } => {
-                *table = TableFactor::Derived { 
-                    lateral: false, 
-                    subquery: Box::new(
-                        Query{ with: None, 
-                            body: Box::new(SetExpr::Select(Box::new(Select{
-                                distinct: None,
-                                top: None,
-                                projection: vec![SelectItem::Wildcard(WildcardAdditionalOptions{ 
-                                    opt_exclude: None, 
-                                    opt_except: None, 
-                                    opt_rename: None, 
-                                    opt_replace: None })],
-                                into: None,
-                                from: vec![TableWithJoins{ relation: TableFactor::Table { 
-                                        name: name.clone(), 
-                                        alias: None, 
-                                        args: None, 
-                                        with_hints: vec![], 
-                                        version: None, 
-                                        partitions: vec![] }, 
-                                    joins: vec![] }],
-                                lateral_views: vec![],
-                                selection: None,
-                                group_by: GroupByExpr::Expressions(vec![]),
-                                cluster_by: vec![],
-                                distribute_by: vec![],
-                                sort_by: vec![],
-                                having: None,
-                                named_window: vec![],
-                                qualify: None,
-                            }))), 
-                            order_by: vec![], 
-                            limit: None, 
-                            offset: None, 
-                            fetch: None, 
-                            locks: vec![] }), 
-                        alias: alias.clone() }
+            TableFactor::Table { alias, .. } => {
+                let substitute_local = 
+                match &local_table{
+                    TableFactor::Derived { lateral, subquery, .. } => {
+                        TableFactor::Derived { lateral: lateral.to_owned(), subquery: subquery.clone(), alias: alias.clone() }
+                    },
+                    TableFactor::Table { name, args, with_hints, version, partitions, .. } => {
+                        TableFactor::Table {name: name.clone(), args: args.clone(), with_hints: with_hints.clone(), alias: alias.clone(), version: version.clone(), partitions: partitions.clone()} 
+                    },
+                    _ => todo!()
+                };
+                *table = substitute_local;
             },
             _ => (),
         };
         std::ops::ControlFlow::<()>::Continue(())
     });
-    ()
+    Ok(())
 }
 
 fn get_originator_alias_and_transform<'a>(
@@ -315,11 +303,11 @@ mod tests {
             }, 
             &SourcePermission{ columns: ColumnPermission{
                 allowed_columns: HashSet::new(),
-            }, rows: RowPermission{ allowed_rows: "true".to_string() } });
+            }, rows: RowPermission{ allowed_rows: "true".to_string() } })?;
 
         assert_eq!(
             statement.to_string(),
-            "SELECT foo, bar FROM (SELECT * FROM (SELECT * FROM tablename))".to_string()
+            "SELECT foo, bar FROM (SELECT * FROM (SELECT * FROM test))".to_string()
         );
 
         Ok(())

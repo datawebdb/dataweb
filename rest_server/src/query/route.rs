@@ -191,7 +191,7 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    validate_sql_template(&query.0)?;
+    let statement = validate_sql_template(&query)?;
 
     debug!("Creating QueryRequest");
     let request = match create_query_request(
@@ -217,6 +217,7 @@ async fn query(
 
     debug!("Mapping QueryRequest to local queries");
     let created_tasks = map_and_create_local_tasks(
+        &statement,
         &query,
         &request,
         &mut db,

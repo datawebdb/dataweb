@@ -6,6 +6,7 @@ pub mod utils;
 pub mod validation;
 
 use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 
 use crate::error::Result;
 use crate::model::access_control::SourcePermission;
@@ -20,11 +21,33 @@ use crate::{
     model::query::{Query, SourceSubstitution},
 };
 
+use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, Visit, VisitMut, VisitorMut};
+use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 use uuid::Uuid;
 
 use self::map_local::map_sql;
 use self::map_remote::map_remote_request;
+
+struct TableVisitor<F>(F);
+
+impl<E, F: FnMut(&mut TableFactor) -> ControlFlow<E>> VisitorMut for TableVisitor<F> {
+    type Break = E;
+
+    fn post_visit_table_factor(&mut self, table_factor: &mut TableFactor) -> ControlFlow<Self::Break> {
+        self.0(table_factor)
+    }
+}
+
+pub fn visit_table_factor_mut<V, E, F>(v: &mut V, f: F) -> ControlFlow<E>
+where
+    V: VisitMut,
+    F: FnMut(&mut TableFactor) -> ControlFlow<E>,
+{
+    let mut visitor = TableVisitor(f);
+    v.visit(&mut visitor)?;
+    ControlFlow::Continue(())
+}
 
 /// Maps Local [Entity][crate::model::entity::Entity] names to Remote Entity names and the corresponding map of
 /// local [Information][crate::model::entity::Information] names to remote Information names.
@@ -50,58 +73,44 @@ pub enum Requester {
 /// executed on the local relay to complete the request.
 pub async fn request_to_local_queries(
     db: &mut PgDb<'_>,
+    query: &Statement,
     raw_request: &RawQueryRequest,
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<(Uuid, Query)>> {
-    let blocks = &raw_request.substitution_blocks;
 
-    let sources = match &blocks
-        .source_substitutions
-        .iter()
-        .next()
-        .ok_or(MeshError::InvalidQuery(
-            "There must be at least one source substitution!".to_string(),
-        ))?
-        .1
-    {
-        // Get mappings in each case, there can only be one case due to constraints above
-        SourceSubstitution::AllSourcesWith(entities) => {
-            let mut all_entities = HashSet::new();
-            for e in entities {
-                all_entities.insert(e.as_str());
-            }
-            db.get_mappings_by_entity_names(Vec::from_iter(all_entities))
-                .await?
+    let mut entities = vec![];
+    visit_relations(query, |relation| {
+        let entity = relation.to_string();
+        if !entities.contains(&entity){
+            entities.push(entity);  
         }
-        SourceSubstitution::SourceList(raw_sources) => {
-            let mut all_sources = HashSet::new();
-            for id in raw_sources {
-                all_sources.insert(id.to_owned());
-            }
-            db.get_mappings_by_source_ids(Vec::from_iter(all_sources))
-                .await?
-        }
-    };
+        std::ops::ControlFlow::<()>::Continue(())
+    });
 
-    let sql = &raw_request.sql;
+    if entities.len()!=1{
+        return Err(MeshError::InvalidQuery("There must be exactly one entity per query.".to_string()))
+    }
+
+    let sources = db.get_mappings_by_entity_names(entities)
+        .await?;
+
     let mut queries = Vec::with_capacity(sources.len());
     for ((con, source), mappings) in sources {
         let permission =
             evaluate_permission_policies(db, direct_requester, requesting_user, &source).await?;
         let source_mapped_sql = map_sql(
-            sql,
+            query.to_owned(),
             &con,
             &source,
             &mappings,
-            blocks,
             &raw_request.originator_mappings,
             permission,
         )?;
         queries.push((
             source.id,
             Query {
-                sql: source_mapped_sql,
+                sql: source_mapped_sql.to_string(),
                 return_schema: raw_request.return_arrow_schema.clone(),
             },
         ));

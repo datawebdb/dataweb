@@ -547,8 +547,8 @@ impl FlightService for FlightRelay {
             None => (),
         }
 
-        debug!("Checking if sql template is valid...");
-        validate_sql_template(&query).map_err(|e| {
+        debug!("Checking if sql is valid...");
+        let statement = validate_sql_template(&query).map_err(|e| {
             Status::invalid_argument(format!("Query validation failed with error {e}"))
         })?;
 
@@ -577,6 +577,7 @@ impl FlightService for FlightRelay {
 
         debug!("Mapping QueryRequest to local queries");
         let created_tasks = map_and_create_local_tasks(
+            &statement,
             &query,
             &request,
             &mut db,

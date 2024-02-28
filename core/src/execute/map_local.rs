@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use datafusion::sql::sqlparser::ast::{GroupByExpr, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins, WildcardAdditionalOptions};
+use datafusion::sql::sqlparser::ast::{visit_relations, visit_relations_mut};
+
 use crate::error::Result;
 
 use crate::model::access_control::SourcePermission;
@@ -16,74 +19,91 @@ use crate::{
     },
 };
 
+use super::visit_table_factor_mut;
+
 /// Substitutes appropriate table names and fields for a specific source
-/// into a sql template
+/// into an ast
 pub(crate) fn map_sql(
-    sql: &str,
+    mut statement: Statement,
     _con: &DataConnection,
     source: &DataSource,
     mappings: &[(Entity, Information, DataField, Mapping)],
-    substitution_blocks: &SubstitutionBlocks,
     alias_mappings: &Option<ScopedOriginatorMappings>,
     permission: SourcePermission,
-) -> Result<String> {
-    let left_capture = &"{".repeat(substitution_blocks.num_capture_braces);
-    let right_capture = &"}".repeat(substitution_blocks.num_capture_braces);
+) -> Result<Statement> {
 
-    let mut replaced = sql.to_string();
-
-    replaced = apply_source_substitutions(
-        replaced,
-        left_capture,
-        right_capture,
+    apply_source_substitutions(
+        &mut statement,
         source,
-        &substitution_blocks.source_substitutions,
         &permission,
     );
 
-    let mut info_map_lookup = HashMap::with_capacity(mappings.len());
-    for (entity, info, field, map) in mappings.iter() {
-        info_map_lookup.insert((entity.name.as_str(), info.name.as_str()), (field, map));
-    }
+    // let mut info_map_lookup = HashMap::with_capacity(mappings.len());
+    // for (entity, info, field, map) in mappings.iter() {
+    //     info_map_lookup.insert((entity.name.as_str(), info.name.as_str()), (field, map));
+    // }
 
-    replaced = apply_info_substitutions(
-        replaced,
-        left_capture,
-        right_capture,
-        &substitution_blocks.info_substitutions,
-        &info_map_lookup,
-        alias_mappings,
-        &permission,
-    )?;
+    // replaced = apply_info_substitutions(
+    //     replaced,
+    //     &info_map_lookup,
+    //     alias_mappings,
+    //     &permission,
+    // )?;
 
-    Ok(replaced)
+    Ok(statement)
 }
 
 fn apply_source_substitutions(
-    mut replaced: String,
-    left_capture: &String,
-    right_capture: &String,
+    statement: &mut Statement,
     source: &DataSource,
-    source_substitutions: &HashMap<String, SourceSubstitution>,
     permission: &SourcePermission,
-) -> String {
-    let allowed_source = format!(
-        "(select {} from ({}) where {})",
-        &permission
-            .columns
-            .allowed_columns
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>()
-            .join(","),
-        &source.source_sql,
-        &permission.rows.allowed_rows,
-    );
-    for (source_key, _) in source_substitutions.iter() {
-        let pattern = format!("{left_capture}{source_key}{right_capture}");
-        replaced = replaced.replace(pattern.as_str(), &allowed_source);
-    }
-    replaced
+){
+    visit_table_factor_mut(statement, |table| {
+        match table{
+            TableFactor::Table { name, alias, args, with_hints, version, partitions } => {
+                *table = TableFactor::Derived { 
+                    lateral: false, 
+                    subquery: Box::new(
+                        Query{ with: None, 
+                            body: Box::new(SetExpr::Select(Box::new(Select{
+                                distinct: None,
+                                top: None,
+                                projection: vec![SelectItem::Wildcard(WildcardAdditionalOptions{ 
+                                    opt_exclude: None, 
+                                    opt_except: None, 
+                                    opt_rename: None, 
+                                    opt_replace: None })],
+                                into: None,
+                                from: vec![TableWithJoins{ relation: TableFactor::Table { 
+                                        name: name.clone(), 
+                                        alias: None, 
+                                        args: None, 
+                                        with_hints: vec![], 
+                                        version: None, 
+                                        partitions: vec![] }, 
+                                    joins: vec![] }],
+                                lateral_views: vec![],
+                                selection: None,
+                                group_by: GroupByExpr::Expressions(vec![]),
+                                cluster_by: vec![],
+                                distribute_by: vec![],
+                                sort_by: vec![],
+                                having: None,
+                                named_window: vec![],
+                                qualify: None,
+                            }))), 
+                            order_by: vec![], 
+                            limit: None, 
+                            offset: None, 
+                            fetch: None, 
+                            locks: vec![] }), 
+                        alias: alias.clone() }
+            },
+            _ => (),
+        };
+        std::ops::ControlFlow::<()>::Continue(())
+    });
+    ()
 }
 
 fn get_originator_alias_and_transform<'a>(
@@ -261,319 +281,45 @@ fn apply_info_substitutions(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
 
+    use std::collections::HashSet;
+
+    use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
     use uuid::Uuid;
+    use crate::model::access_control::{ColumnPermission, RowPermission, SourcePermission};
+    use crate::model::data_stores::options::SourceOptions;
 
-    use crate::{
-        error::Result,
-        execute::map_local::{apply_info_substitutions, apply_source_substitutions},
-        model::{
-            access_control::{ColumnPermission, RowPermission, SourcePermission},
-            data_stores::{
-                options::{trino::TrinoSource, SourceOptions},
-                DataField, DataSource,
-            },
-            mappings::{Mapping, Transformation},
-            query::{
-                InfoSubstitution, OriginatorEntityMapping, OriginatorInfoMapping,
-                OriginatorMappings, ScopedOriginatorMappings, SourceSubstitution,
-            },
-        },
-    };
+    use crate::{error::{MeshError, Result}, execute::validation::validate_sql_template, model::data_stores::{options::trino::TrinoSource, DataSource}};
 
-    /// Values which typically would come from application state (the database), but
-    /// for the purposes of unit tests, we just make up some values.
-    type SomeValues = (
-        String,
-        String,
-        String,
-        HashMap<String, InfoSubstitution>,
-        HashMap<String, SourceSubstitution>,
-        DataSource,
-        DataField,
-        Mapping,
-        ScopedOriginatorMappings,
-    );
-
-    fn make_up_some_values() -> SomeValues {
-        let replaced = "select {info} from {source} where {info2}=0.1".to_string();
-        let left_capture = "{".to_string();
-        let right_capture = "}".to_string();
-
-        let mut info_substitutions = HashMap::new();
-        info_substitutions.insert(
-            "info".to_string(),
-            InfoSubstitution {
-                entity_name: "test".to_string(),
-                info_name: "test".to_string(),
-                scope: "origin".to_string(),
-                include_info: true,
-                exclude_info_alias: false,
-                include_data_field: true,
-            },
-        );
-
-        info_substitutions.insert(
-            "info2".to_string(),
-            InfoSubstitution {
-                entity_name: "test".to_string(),
-                info_name: "test".to_string(),
-                scope: "origin".to_string(),
-                include_info: false,
-                exclude_info_alias: false,
-                include_data_field: true,
-            },
-        );
-
-        let mut source_substitutions = HashMap::new();
-        source_substitutions.insert(
-            "source".to_string(),
-            SourceSubstitution::AllSourcesWith(vec!["test".to_string()]),
-        );
-
-        let source = DataSource {
-            id: Uuid::new_v4(),
-            name: "test".to_string(),
-            source_sql: "test".to_string(),
-            data_connection_id: Uuid::new_v4(),
-            source_options: SourceOptions::Trino(TrinoSource {}),
-        };
-        let field = DataField {
-            id: Uuid::new_v4(),
-            name: "field".to_string(),
-            data_source_id: Uuid::new_v4(),
-            path: "field_path".to_string(),
-        };
-        let map = Mapping {
-            information_id: Uuid::new_v4(),
-            data_field_id: Uuid::new_v4(),
-            transformation: Transformation {
-                other_to_local_info: "{v}/10".to_string(),
-                local_info_to_other: "{v}*10".to_string(),
-                replace_from: "{v}".to_string(),
-            },
-        };
-
-        let mut originator_info_map = HashMap::new();
-        originator_info_map.insert(
-            "test".to_string(),
-            OriginatorInfoMapping {
-                originator_info_name: "test_orig".to_string(),
-                transformation: Transformation {
-                    other_to_local_info: "{v}/100".to_string(),
-                    local_info_to_other: "{v}*100".to_string(),
-                    replace_from: "{v}".to_string(),
-                },
-            },
-        );
-
-        let mut inner = HashMap::new();
-        inner.insert(
-            "test".to_string(),
-            OriginatorEntityMapping {
-                originator_entity_name: "test_orig".to_string(),
-                originator_info_map,
-            },
-        );
-        let alias_mapping = OriginatorMappings { inner };
-        let scoped_alias_mapping = ScopedOriginatorMappings {
-            inner: HashMap::from_iter(vec![("origin".to_string(), alias_mapping)]),
-        };
-
-        (
-            replaced,
-            left_capture,
-            right_capture,
-            info_substitutions,
-            source_substitutions,
-            source,
-            field,
-            map,
-            scoped_alias_mapping,
-        )
-    }
+    use super::apply_source_substitutions;
 
     #[test]
-    fn test_simple_info_substitution() -> Result<()> {
-        let (
-            replaced,
-            left_capture,
-            right_capture,
-            info_substitution,
-            _source_substitution,
-            _source,
-            field,
-            map,
-            _alias_mapping,
-        ) = make_up_some_values();
+    fn source_substitution_test() -> Result<()> {
 
-        let permission = SourcePermission {
-            columns: ColumnPermission {
-                allowed_columns: HashSet::from_iter(vec!["field_path".to_string()]),
-            },
-            rows: RowPermission {
-                allowed_rows: "col1 is not null".to_string(),
-            },
-        };
+        let sql = "select foo, bar from (select * from tablename);";
+        let dialect = AnsiDialect {};
 
-        let mut info_map_lookup = HashMap::new();
-        info_map_lookup.insert(("test", "test"), (&field, &map));
-        let replaced = apply_info_substitutions(
-            replaced,
-            &left_capture,
-            &right_capture,
-            &info_substitution,
-            &info_map_lookup,
-            &None,
-            &permission,
-        )?;
-        assert_eq!(
-            replaced,
-            "select field_path, \
-        field_path/10 as test \
-         from {source} \
-         where field_path=0.1"
-                .to_string()
-        );
-        Ok(())
-    }
+        let mut ast = Parser::parse_sql(&dialect, &sql)
+            .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
-    #[test]
-    fn test_multihop_info_substitution() -> Result<()> {
-        let (
-            replaced,
-            left_capture,
-            right_capture,
-            info_substitution,
-            _source_substitution,
-            _source,
-            field,
-            map,
-            alias_mapping,
-        ) = make_up_some_values();
+        let mut statement = ast.remove(0);
 
-        let permission = SourcePermission {
-            columns: ColumnPermission {
-                allowed_columns: HashSet::from_iter(vec!["field_path".to_string()]),
-            },
-            rows: RowPermission {
-                allowed_rows: "col1 is not null".to_string(),
-            },
-        };
-
-        let mut info_map_lookup = HashMap::new();
-        info_map_lookup.insert(("test", "test"), (&field, &map));
-        let replaced = apply_info_substitutions(
-            replaced,
-            &left_capture,
-            &right_capture,
-            &info_substitution,
-            &info_map_lookup,
-            &Some(alias_mapping),
-            &permission,
-        )?;
-        assert_eq!(
-            replaced,
-            "select field_path, \
-            (field_path/10)*100 as test_orig \
-             from {source} \
-             where field_path=0.1"
-                .to_string()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_simple_source_substitution() -> Result<()> {
-        let (
-            replaced,
-            left_capture,
-            right_capture,
-            _info_substitution,
-            source_substitution,
-            source,
-            _field,
-            _map,
-            _alias_mapping,
-        ) = make_up_some_values();
-
-        let permission = SourcePermission {
-            columns: ColumnPermission {
-                allowed_columns: HashSet::from_iter(vec!["field_path".to_string()]),
-            },
-            rows: RowPermission {
-                allowed_rows: "col1 is not null".to_string(),
-            },
-        };
-        let replaced = apply_source_substitutions(
-            replaced,
-            &left_capture,
-            &right_capture,
-            &source,
-            &source_substitution,
-            &permission,
-        );
-        assert_eq!(
-            replaced,
-            "select {info} \
-        from (select field_path from (test) where col1 is not null) \
-        where {info2}=0.1"
-                .to_string()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_map_sql() -> Result<()> {
-        let (
-            replaced,
-            left_capture,
-            right_capture,
-            info_substitution,
-            source_substitution,
-            source,
-            field,
-            map,
-            alias_mapping,
-        ) = make_up_some_values();
-
-        let permission = SourcePermission {
-            columns: ColumnPermission {
-                allowed_columns: HashSet::from_iter(vec!["field_path".to_string()]),
-            },
-            rows: RowPermission {
-                allowed_rows: "col1 is not null".to_string(),
-            },
-        };
-        let replaced = apply_source_substitutions(
-            replaced,
-            &left_capture,
-            &right_capture,
-            &source,
-            &source_substitution,
-            &permission,
-        );
-
-        let mut info_map_lookup = HashMap::new();
-        info_map_lookup.insert(("test", "test"), (&field, &map));
-        let replaced = apply_info_substitutions(
-            replaced,
-            &left_capture,
-            &right_capture,
-            &info_substitution,
-            &info_map_lookup,
-            &Some(alias_mapping.clone()),
-            &permission,
-        )?;
+        apply_source_substitutions(
+            &mut statement, 
+            &DataSource{
+                id: Uuid::new_v4(),
+                name: "test".to_string(),
+                source_sql: "select * from test".to_string(),
+                data_connection_id: Uuid::new_v4(),
+                source_options: SourceOptions::Trino(TrinoSource{}),
+            }, 
+            &SourcePermission{ columns: ColumnPermission{
+                allowed_columns: HashSet::new(),
+            }, rows: RowPermission{ allowed_rows: "true".to_string() } });
 
         assert_eq!(
-            replaced,
-            "select field_path, \
-        (field_path/10)*100 as test_orig \
-        from (select field_path from (test) where col1 is not null) \
-        where field_path=0.1"
-                .to_string()
+            statement.to_string(),
+            "SELECT foo, bar FROM (SELECT * FROM (SELECT * FROM tablename))".to_string()
         );
 
         Ok(())

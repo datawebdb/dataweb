@@ -14,6 +14,7 @@ use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};
 use crate::{crud::PgDb, error::MeshError};
 
+use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -236,13 +237,14 @@ pub async fn create_query_request(
 /// Helper function that maps a [RawQueryRequest] to [Querys][crate::model::query::Query] for all relevant local
 /// data sources and stores the needed info in the database as [QueryTasks][crate::model::query::QueryTask].
 pub async fn map_and_create_local_tasks(
-    query: &RawQueryRequest,
+    query: &Statement,
+    raw_request: &RawQueryRequest,
     request: &QueryRequest,
     db: &mut PgDb<'_>,
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<QueryTask>> {
-    let queries = request_to_local_queries(db, query, direct_requester, requesting_user).await?;
+    let queries = request_to_local_queries(db, query, raw_request, direct_requester, requesting_user).await?;
     debug!("Creating {} local tasks!", queries.len());
     let mut tasks = Vec::with_capacity(queries.len());
     for (data_source_id, q) in queries {

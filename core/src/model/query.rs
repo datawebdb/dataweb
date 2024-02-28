@@ -29,7 +29,8 @@ pub struct Query {
 /// Each relay processing a QueryRequest will need to resolve it
 /// to [Query] objects which can be executed against local [DataSource]s.
 pub struct RawQueryRequest {
-    /// A Sql template string, e.g. "select {info} from {source}"
+    /// A raw SQL string, expressed in terms of [Entity][crate::model::entity::Entity]
+    /// and [Information][crate::model::entity::Information].
     pub sql: String,
     pub substitution_blocks: SubstitutionBlocks,
     /// This is the globally unique [Uuid] for the query request, which is required for handling

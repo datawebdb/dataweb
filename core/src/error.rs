@@ -145,3 +145,9 @@ impl From<tonic::transport::Error> for MeshError {
         MeshError::RemoteError(e.to_string())
     }
 }
+
+impl From<datafusion::sql::sqlparser::parser::ParserError> for MeshError {
+    fn from(e: datafusion::sql::sqlparser::parser::ParserError) -> Self {
+        MeshError::InvalidQuery(e.to_string())
+    }
+}

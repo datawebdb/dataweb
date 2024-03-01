@@ -21,8 +21,8 @@ use crate::{
     model::query::{Query, SourceSubstitution},
 };
 
-use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, Visit, VisitMut, VisitorMut};
 use datafusion::sql::sqlparser::ast::Statement;
+use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, Visit, VisitMut, VisitorMut};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -34,7 +34,10 @@ struct TableVisitor<F>(F);
 impl<E, F: FnMut(&mut TableFactor) -> ControlFlow<E>> VisitorMut for TableVisitor<F> {
     type Break = E;
 
-    fn post_visit_table_factor(&mut self, table_factor: &mut TableFactor) -> ControlFlow<Self::Break> {
+    fn post_visit_table_factor(
+        &mut self,
+        table_factor: &mut TableFactor,
+    ) -> ControlFlow<Self::Break> {
         self.0(table_factor)
     }
 }
@@ -78,22 +81,22 @@ pub async fn request_to_local_queries(
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<(Uuid, Query)>> {
-
     let mut entities = vec![];
     visit_relations(query, |relation| {
         let entity = relation.to_string();
-        if !entities.contains(&entity){
-            entities.push(entity);  
+        if !entities.contains(&entity) {
+            entities.push(entity);
         }
         std::ops::ControlFlow::<()>::Continue(())
     });
 
-    if entities.len()!=1{
-        return Err(MeshError::InvalidQuery("There must be exactly one entity per query.".to_string()))
+    if entities.len() != 1 {
+        return Err(MeshError::InvalidQuery(
+            "There must be exactly one entity per query.".to_string(),
+        ));
     }
 
-    let sources = db.get_mappings_by_entity_names(entities)
-        .await?;
+    let sources = db.get_mappings_by_entity_names(entities).await?;
 
     let mut queries = Vec::with_capacity(sources.len());
     for ((con, source), mappings) in sources {

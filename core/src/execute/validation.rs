@@ -43,9 +43,7 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<Statement>
     let statement = ast.remove(0);
 
     match &statement {
-        Statement::Query(q) => {
-            validate_query_statement(q, raw_request)?
-        }
+        Statement::Query(q) => validate_query_statement(q, raw_request)?,
         _ => {
             return Err(MeshError::InvalidQuery(format!(
                 "SQL templates may only contain read-only \
@@ -53,15 +51,11 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<Statement>
             )))
         }
     }
-    
 
     Ok(statement)
 }
 
-fn validate_expr(
-    expr: &Expr,
-    raw_request: &RawQueryRequest,
-) -> Result<()> {
+fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
     match expr {
         Expr::Identifier(_) => (),
         Expr::CompoundIdentifier(_) => (),
@@ -75,23 +69,13 @@ fn validate_expr(
             ))
         }
         Expr::IsFalse(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotFalse(inner) => {
-            validate_expr(inner.as_ref(), raw_request)?
-        }
-        Expr::IsNotTrue(inner) => {
-            validate_expr(inner.as_ref(), raw_request)?
-        }
+        Expr::IsNotFalse(inner) => validate_expr(inner.as_ref(), raw_request)?,
+        Expr::IsNotTrue(inner) => validate_expr(inner.as_ref(), raw_request)?,
         Expr::IsTrue(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotNull(inner) => {
-            validate_expr(inner.as_ref(), raw_request)?
-        }
+        Expr::IsNotNull(inner) => validate_expr(inner.as_ref(), raw_request)?,
         Expr::IsNull(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsUnknown(inner) => {
-            validate_expr(inner.as_ref(), raw_request)?
-        }
-        Expr::IsNotUnknown(inner) => {
-            validate_expr(inner.as_ref(), raw_request)?
-        }
+        Expr::IsUnknown(inner) => validate_expr(inner.as_ref(), raw_request)?,
+        Expr::IsNotUnknown(inner) => validate_expr(inner.as_ref(), raw_request)?,
         Expr::IsDistinctFrom(left, right) => {
             validate_expr(left.as_ref(), raw_request)?;
             validate_expr(right.as_ref(), raw_request)?;
@@ -108,10 +92,7 @@ fn validate_expr(
         }
         Expr::InSubquery { expr, subquery, .. } => {
             validate_expr(expr.as_ref(), raw_request)?;
-            validate_query_statement(
-                subquery.as_ref(),
-                raw_request,
-            )?;
+            validate_query_statement(subquery.as_ref(), raw_request)?;
         }
         Expr::InUnnest {
             expr, array_expr, ..
@@ -150,30 +131,14 @@ fn validate_expr(
             validate_expr(left.as_ref(), raw_request)?;
             validate_expr(right.as_ref(), raw_request)?;
         }
-        Expr::UnaryOp { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::Cast { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::TryCast { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::SafeCast { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::AtTimeZone { timestamp, .. } => {
-            validate_expr(timestamp.as_ref(), raw_request)?
-        }
-        Expr::Extract { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::Ceil { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
-        Expr::Floor { expr, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?
-        }
+        Expr::UnaryOp { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::Cast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::TryCast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::SafeCast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::AtTimeZone { timestamp, .. } => validate_expr(timestamp.as_ref(), raw_request)?,
+        Expr::Extract { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::Ceil { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::Floor { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
         Expr::Position { expr, r#in } => {
             validate_expr(expr.as_ref(), raw_request)?;
             validate_expr(r#in.as_ref(), raw_request)?;
@@ -239,16 +204,12 @@ fn validate_expr(
             for arg in fun.args.iter() {
                 match arg {
                     FunctionArg::Named { arg, .. } => match arg {
-                        FunctionArgExpr::Expr(expr) => {
-                            validate_expr(expr, raw_request)?
-                        }
+                        FunctionArgExpr::Expr(expr) => validate_expr(expr, raw_request)?,
                         FunctionArgExpr::Wildcard => (),
                         FunctionArgExpr::QualifiedWildcard(_) => (),
                     },
                     FunctionArg::Unnamed(arg) => match arg {
-                        FunctionArgExpr::Expr(expr) => {
-                            validate_expr(expr, raw_request)?
-                        }
+                        FunctionArgExpr::Expr(expr) => validate_expr(expr, raw_request)?,
                         FunctionArgExpr::Wildcard => (),
                         FunctionArgExpr::QualifiedWildcard(_) => (),
                     },
@@ -257,9 +218,7 @@ fn validate_expr(
 
             if let Some(window) = &fun.over {
                 match &window {
-                    WindowType::WindowSpec(spec) => {
-                        validate_window_spec(spec, raw_request)?
-                    }
+                    WindowType::WindowSpec(spec) => validate_window_spec(spec, raw_request)?,
                     WindowType::NamedWindow(_) => (),
                 }
             }
@@ -294,18 +253,9 @@ fn validate_expr(
                 validate_expr(expr.as_ref(), raw_request)?;
             }
         }
-        Expr::Exists { subquery, .. } => validate_query_statement(
-            subquery.as_ref(),
-            raw_request,
-        )?,
-        Expr::Subquery(subquery) => validate_query_statement(
-            subquery.as_ref(),
-            raw_request,
-        )?,
-        Expr::ArraySubquery(subquery) => validate_query_statement(
-            subquery.as_ref(),
-            raw_request,
-        )?,
+        Expr::Exists { subquery, .. } => validate_query_statement(subquery.as_ref(), raw_request)?,
+        Expr::Subquery(subquery) => validate_query_statement(subquery.as_ref(), raw_request)?,
+        Expr::ArraySubquery(subquery) => validate_query_statement(subquery.as_ref(), raw_request)?,
         Expr::ListAgg(listagg) => {
             validate_expr(&listagg.expr, raw_request)?;
             if let Some(expr) = &listagg.separator {
@@ -390,12 +340,8 @@ fn validate_window_frame_bound(
     raw_request: &RawQueryRequest,
 ) -> Result<()> {
     match &bound {
-        WindowFrameBound::Preceding(Some(expr)) => {
-            validate_expr(expr, raw_request)?
-        }
-        WindowFrameBound::Following(Some(expr)) => {
-            validate_expr(expr, raw_request)?
-        }
+        WindowFrameBound::Preceding(Some(expr)) => validate_expr(expr, raw_request)?,
+        WindowFrameBound::Following(Some(expr)) => validate_expr(expr, raw_request)?,
         WindowFrameBound::CurrentRow
         | WindowFrameBound::Preceding(None)
         | WindowFrameBound::Following(None) => (),
@@ -404,10 +350,7 @@ fn validate_window_frame_bound(
     Ok(())
 }
 
-fn validate_window_spec(
-    spec: &WindowSpec,
-    raw_request: &RawQueryRequest,
-) -> Result<()> {
+fn validate_window_spec(spec: &WindowSpec, raw_request: &RawQueryRequest) -> Result<()> {
     for expr in spec.partition_by.iter() {
         validate_expr(expr, raw_request)?;
     }
@@ -426,10 +369,7 @@ fn validate_window_spec(
     Ok(())
 }
 
-fn validate_select_setexpr(
-    select: &Select,
-    raw_request: &RawQueryRequest,
-) -> Result<()> {
+fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Result<()> {
     if let Some(distinct) = &select.distinct {
         match distinct {
             Distinct::Distinct => (),
@@ -449,12 +389,8 @@ fn validate_select_setexpr(
 
     for proj in select.projection.iter() {
         match proj {
-            SelectItem::UnnamedExpr(expr) => {
-                validate_expr(expr, raw_request)?
-            }
-            SelectItem::ExprWithAlias { expr, .. } => {
-                validate_expr(expr, raw_request)?
-            }
+            SelectItem::UnnamedExpr(expr) => validate_expr(expr, raw_request)?,
+            SelectItem::ExprWithAlias { expr, .. } => validate_expr(expr, raw_request)?,
             SelectItem::Wildcard(_) => (),
             SelectItem::QualifiedWildcard(_, _) => (),
         }
@@ -480,7 +416,6 @@ fn validate_select_setexpr(
                         name
                     )));
                 }
-
             }
             TableFactor::Derived {
                 lateral,
@@ -555,17 +490,10 @@ fn validate_select_setexpr(
     Ok(())
 }
 
-fn validate_query_body(
-    body: &SetExpr,
-    raw_request: &RawQueryRequest,
-) -> Result<()> {
+fn validate_query_body(body: &SetExpr, raw_request: &RawQueryRequest) -> Result<()> {
     match body {
-        SetExpr::Select(s) => {
-            validate_select_setexpr(s.as_ref(), raw_request)?
-        }
-        SetExpr::Query(q) => {
-            validate_query_statement(q.as_ref(), raw_request)?
-        }
+        SetExpr::Select(s) => validate_select_setexpr(s.as_ref(), raw_request)?,
+        SetExpr::Query(q) => validate_query_statement(q.as_ref(), raw_request)?,
         SetExpr::SetOperation { left, right, .. } => {
             validate_query_body(left.as_ref(), raw_request)?;
             validate_query_body(right.as_ref(), raw_request)?;

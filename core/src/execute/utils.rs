@@ -244,7 +244,8 @@ pub async fn map_and_create_local_tasks(
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<QueryTask>> {
-    let queries = request_to_local_queries(db, query, raw_request, direct_requester, requesting_user).await?;
+    let queries =
+        request_to_local_queries(db, query, raw_request, direct_requester, requesting_user).await?;
     debug!("Creating {} local tasks!", queries.len());
     let mut tasks = Vec::with_capacity(queries.len());
     for (data_source_id, q) in queries {

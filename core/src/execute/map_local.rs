@@ -21,7 +21,7 @@ use crate::{
 
 use super::parse_utils::{
     iden_str_to_select_item, null_lit_expr, parse_sql_as_expr, parse_sql_as_table_factor,
-    projected_filtered_query,
+    projected_filtered_query, substitute_table_factor,
 };
 use super::visit_table_factor_mut;
 
@@ -96,25 +96,9 @@ fn apply_source_substitutions(
 ) -> Result<()> {
     let source_sql = &source.source_sql;
     let local_table = parse_sql_as_table_factor(source_sql)?;
-
     let controlled_table = apply_source_permission(local_table, permission)?;
 
-    visit_table_factor_mut(statement, |table| {
-        if let TableFactor::Table { alias, .. } = table {
-            // Subsitute in the alias for the table being replaced into the inner derived table
-            *table = match &controlled_table {
-                TableFactor::Derived {
-                    lateral, subquery, ..
-                } => TableFactor::Derived {
-                    lateral: *lateral,
-                    subquery: subquery.clone(),
-                    alias: alias.clone(),
-                },
-                _ => unreachable!(),
-            };
-        };
-        std::ops::ControlFlow::<()>::Continue(())
-    });
+    substitute_table_factor(statement, controlled_table)?;
     Ok(())
 }
 

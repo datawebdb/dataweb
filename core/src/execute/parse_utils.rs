@@ -1,12 +1,16 @@
+use std::collections::{HashMap, HashSet};
+
 use datafusion::sql::sqlparser::{
     ast::{
-        Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
+        visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins
     },
     dialect::AnsiDialect,
     parser::Parser,
 };
 
-use crate::error::{MeshError, Result};
+use crate::{error::{MeshError, Result}, model::access_control::SourcePermission};
+
+use super::visit_table_factor_mut;
 
 static DIALECT: AnsiDialect = AnsiDialect {};
 
@@ -77,4 +81,77 @@ pub(crate) fn iden_str_to_select_item(iden: &str) -> Result<SelectItem> {
         Expr::CompoundIdentifier(idens)
     };
     Ok(SelectItem::UnnamedExpr(expr))
+}
+
+/// Rewrites [Statement] replacing all TableFactor::Table instances with the provided new_table
+pub(crate) fn substitute_table_factor(statement: &mut Statement, new_table: TableFactor) -> Result<()>{
+    visit_table_factor_mut(statement, |table| {
+        if let TableFactor::Table { alias, .. } = table {
+            // Subsitute in the alias for the table being replaced into the inner derived table
+            *table = match &new_table {
+                TableFactor::Derived {
+                    lateral, subquery, ..
+                } => TableFactor::Derived {
+                    lateral: *lateral,
+                    subquery: subquery.clone(),
+                    alias: alias.clone(),
+                },
+                _ => unreachable!(),
+            };
+        };
+        std::ops::ControlFlow::<()>::Continue(())
+    });
+    Ok(())
+}
+
+/// Rewrites [Statement] replacing all Expr::CompoundIdentifiers for the passed entity_name.
+/// These are assumed to be normalized by logical planning into a two part identifier like
+/// `Entity Name`.`Info Name`.
+pub(crate) fn apply_col_iden_mapping(
+    statement: &mut Statement,
+    info_map_lookup: &HashMap<&str, String>,
+    entity_name: &str,
+) -> Result<()> {
+    let r = visit_expressions_mut(statement, |expr| {
+        let info_name = match &expr {
+            Expr::CompoundIdentifier(idens) => {
+                if idens.len() != 2 {
+                    return std::ops::ControlFlow::Continue(());
+                }
+                match (idens.first(), idens.get(1)) {
+                    (Some(ent), Some(info)) => {
+                        if ent.value == entity_name {
+                            &info.value
+                        } else {
+                            return std::ops::ControlFlow::Continue(());
+                        }
+                    }
+                    _ => return std::ops::ControlFlow::Continue(()),
+                }
+            }
+            _ => return std::ops::ControlFlow::Continue(()),
+        };
+
+        let transformed_info_sql = match info_map_lookup.get(info_name.as_str()) {
+            Some(info_map) => info_map,
+            None => {
+                *expr = null_lit_expr();
+                return std::ops::ControlFlow::Continue(());
+            }
+        };
+
+        match parse_sql_as_expr(&transformed_info_sql) {
+            Ok(transformed_expr) => *expr = transformed_expr,
+            Err(e) => return std::ops::ControlFlow::Break(Err(e)),
+        };
+
+        std::ops::ControlFlow::Continue(())
+    });
+
+    // Raise error if traversal short circuited with an error
+    if let std::ops::ControlFlow::Break(e) = r {
+        return e;
+    }
+
+    Ok(())
 }

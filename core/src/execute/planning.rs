@@ -1,9 +1,13 @@
 use std::{any::Any, sync::Arc};
 
 use arrow_schema::{DataType, SchemaRef};
-use datafusion::{common::plan_err, config::ConfigOptions, logical_expr::{AggregateUDF, ScalarUDF, TableSource, WindowUDF}, sql::{planner::ContextProvider, TableReference}};
-use datafusion::error::{Result, DataFusionError};
-
+use datafusion::error::{DataFusionError, Result};
+use datafusion::{
+    common::plan_err,
+    config::ConfigOptions,
+    logical_expr::{AggregateUDF, ScalarUDF, TableSource, WindowUDF},
+    sql::{planner::ContextProvider, TableReference},
+};
 
 /// DataFusion logical planning ContextProvider for a single Entity.
 pub(crate) struct EntityContext {
@@ -12,18 +16,27 @@ pub(crate) struct EntityContext {
     options: ConfigOptions,
 }
 
-impl EntityContext{
-    pub(crate) fn new(entity: &str, schema: SchemaRef) -> Self{
-        Self { entity: entity.to_string(), schema, options: ConfigOptions::default() }
+impl EntityContext {
+    pub(crate) fn new(entity: &str, schema: SchemaRef) -> Self {
+        Self {
+            entity: entity.to_string(),
+            schema,
+            options: ConfigOptions::default(),
+        }
     }
 }
 
 impl ContextProvider for EntityContext {
     fn get_table_source(&self, name: TableReference) -> Result<Arc<dyn TableSource>> {
         if name.table() == self.entity {
-            Ok(Arc::new(EntitySource { schema: self.schema.clone()}))
+            Ok(Arc::new(EntitySource {
+                schema: self.schema.clone(),
+            }))
         } else {
-            plan_err!("Unexpected Entity encountered {name} while planning for entity {}", self.entity)
+            plan_err!(
+                "Unexpected Entity encountered {name} while planning for entity {}",
+                self.entity
+            )
         }
     }
 
@@ -46,7 +59,6 @@ impl ContextProvider for EntityContext {
     fn options(&self) -> &ConfigOptions {
         &self.options
     }
-
 }
 
 struct EntitySource {

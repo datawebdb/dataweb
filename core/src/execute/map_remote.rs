@@ -150,8 +150,8 @@ fn map_source_substitutions(
 #[allow(clippy::too_many_arguments)]
 fn map_info_substitutions(
     mut replaced: String,
-    left_capture: &String,
-    right_capture: &String,
+    left_capture: &str,
+    right_capture: &str,
     out_blocks: &mut SubstitutionBlocks,
     relay: &Relay,
     info_substitutions: &HashMap<String, InfoSubstitution>,

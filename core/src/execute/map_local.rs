@@ -1,19 +1,13 @@
 use std::collections::HashMap;
 
 use datafusion::sql::sqlparser::ast::{
-    visit_expressions_mut, visit_statements_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins, WildcardAdditionalOptions
+    visit_expressions_mut, Expr, Statement, TableFactor, TableWithJoins,
 };
-use datafusion::sql::sqlparser::ast::{visit_relations, visit_relations_mut};
-use datafusion::sql::sqlparser::dialect::AnsiDialect;
-use datafusion::sql::sqlparser::parser::Parser;
-use itertools::Itertools;
-use object_store::local;
-use tracing::debug;
 
 use crate::error::Result;
 
 use crate::model::access_control::SourcePermission;
-use crate::model::mappings::Transformation;
+
 use crate::model::query::{InfoSubstitution, ScopedOriginatorMappings};
 
 use crate::{
@@ -22,11 +16,13 @@ use crate::{
         data_stores::{DataConnection, DataField, DataSource},
         entity::{Entity, Information},
         mappings::Mapping,
-        query::{SourceSubstitution, SubstitutionBlocks},
     },
 };
 
-use super::parse_utils::{iden_str_to_select_item, null_lit_expr, parse_sql_as_expr, parse_sql_as_identifiers, parse_sql_as_table_factor, projected_filtered_query};
+use super::parse_utils::{
+    iden_str_to_select_item, null_lit_expr, parse_sql_as_expr, parse_sql_as_table_factor,
+    projected_filtered_query,
+};
 use super::visit_table_factor_mut;
 
 /// Substitutes appropriate table names and fields for a specific source
@@ -46,12 +42,7 @@ pub(crate) fn map_sql(
         info_map_lookup.insert(info.name.as_str(), (field, map));
     }
 
-    apply_info_substitutions(
-        &mut statement,
-        &info_map_lookup,
-        &permission,
-        entity_name,
-    )?;
+    apply_info_substitutions(&mut statement, &info_map_lookup, &permission, entity_name)?;
 
     Ok(statement)
 }
@@ -62,7 +53,6 @@ fn apply_source_permission(
     table: TableFactor,
     permission: &SourcePermission,
 ) -> Result<TableFactor> {
-   
     let selection = parse_sql_as_expr(&permission.rows.allowed_rows)?;
 
     let alias = match &table {
@@ -105,26 +95,23 @@ fn apply_source_substitutions(
     permission: &SourcePermission,
 ) -> Result<()> {
     let source_sql = &source.source_sql;
-    let local_table = parse_sql_as_table_factor(&source_sql)?;
+    let local_table = parse_sql_as_table_factor(source_sql)?;
 
     let controlled_table = apply_source_permission(local_table, permission)?;
 
     visit_table_factor_mut(statement, |table| {
-        match table {
-            TableFactor::Table { alias, .. } => {
-                // Subsitute in the alias for the table being replaced into the inner derived table
-                *table = match &controlled_table {
-                    TableFactor::Derived {
-                        lateral, subquery, ..
-                    } => TableFactor::Derived {
-                        lateral: *lateral,
-                        subquery: subquery.clone(),
-                        alias: alias.clone(),
-                    },
-                    _ => unreachable!(),
-                };
-            }
-            _ => (),
+        if let TableFactor::Table { alias, .. } = table {
+            // Subsitute in the alias for the table being replaced into the inner derived table
+            *table = match &controlled_table {
+                TableFactor::Derived {
+                    lateral, subquery, ..
+                } => TableFactor::Derived {
+                    lateral: *lateral,
+                    subquery: subquery.clone(),
+                    alias: alias.clone(),
+                },
+                _ => unreachable!(),
+            };
         };
         std::ops::ControlFlow::<()>::Continue(())
     });
@@ -132,19 +119,18 @@ fn apply_source_substitutions(
 }
 
 pub(crate) fn substitute_and_transform_info(
-    mut replaced: String,
-    info_key: &String,
-    left_capture: &String,
-    right_capture: &String,
-    scoped_alias_mappings: &Option<ScopedOriginatorMappings>,
-    transformed_info_sql: String,
-    block: &InfoSubstitution,
-    field: &DataField,
+    _replaced: String,
+    _info_key: &str,
+    _left_capture: &str,
+    _right_capture: &str,
+    _scoped_alias_mappings: &Option<ScopedOriginatorMappings>,
+    _transformed_info_sql: String,
+    _block: &InfoSubstitution,
+    _field: &DataField,
 ) -> Result<String> {
     //deleteme
     todo!()
 }
-
 
 fn apply_info_substitutions(
     statement: &mut Statement,
@@ -152,32 +138,31 @@ fn apply_info_substitutions(
     permission: &SourcePermission,
     entity_name: &str,
 ) -> Result<()> {
-
     let r = visit_expressions_mut(statement, |expr| {
-        let info_name = match &expr{
+        let info_name = match &expr {
             Expr::CompoundIdentifier(idens) => {
-                if idens.len()!=2{
-                    return std::ops::ControlFlow::Continue(())
+                if idens.len() != 2 {
+                    return std::ops::ControlFlow::Continue(());
                 }
-                match (idens.get(0), idens.get(1)){
+                match (idens.first(), idens.get(1)) {
                     (Some(ent), Some(info)) => {
-                        if ent.value==entity_name{
+                        if ent.value == entity_name {
                             &info.value
-                        } else{
-                            return std::ops::ControlFlow::Continue(())
+                        } else {
+                            return std::ops::ControlFlow::Continue(());
                         }
-                    },
-                    _ => return std::ops::ControlFlow::Continue(())
+                    }
+                    _ => return std::ops::ControlFlow::Continue(()),
                 }
-            },
-            _ => return std::ops::ControlFlow::Continue(())
+            }
+            _ => return std::ops::ControlFlow::Continue(()),
         };
 
         let (field, map) = match info_map_lookup.get(info_name.as_str()) {
             Some(info_map) => info_map,
             None => {
                 *expr = null_lit_expr();
-                return std::ops::ControlFlow::Continue(())
+                return std::ops::ControlFlow::Continue(());
             }
         };
 
@@ -188,9 +173,9 @@ fn apply_info_substitutions(
 
         if permission.columns.allowed_columns.contains(&field.path) {
             // Short circuit on error and immediately return error
-            match parse_sql_as_expr(&transformed_info_sql){
+            match parse_sql_as_expr(&transformed_info_sql) {
                 Ok(transformed_expr) => *expr = transformed_expr,
-                Err(e) => return std::ops::ControlFlow::Break(Err(e))
+                Err(e) => return std::ops::ControlFlow::Break(Err(e)),
             };
         } else {
             *expr = null_lit_expr();
@@ -200,8 +185,8 @@ fn apply_info_substitutions(
     });
 
     // Raise error if traversal short circuited with an error
-    if let std::ops::ControlFlow::Break(e) = r{
-        return e
+    if let std::ops::ControlFlow::Break(e) = r {
+        return e;
     }
 
     Ok(())
@@ -226,7 +211,6 @@ mod tests {
 
     use crate::{
         error::{MeshError, Result},
-        execute::validation::validate_sql_template,
         model::data_stores::{options::trino::TrinoSource, DataSource},
     };
 
@@ -246,7 +230,7 @@ mod tests {
             Field::new("foo", DataType::Utf8, false),
             Field::new("bar", DataType::UInt8, false),
         ]));
-        
+
         let context_provider = EntityContext::new("entityname", schema);
         let sql_to_rel = SqlToRel::new(&context_provider);
         let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
@@ -298,30 +282,28 @@ mod tests {
 
         let mut statement = ast.remove(0);
 
-        let foo_field = DataField{
+        let foo_field = DataField {
             id: Uuid::new_v4(),
             name: "foo".to_string(),
             data_source_id: Uuid::new_v4(),
             path: "field.path".to_string(),
         };
 
-        let foo_map = Mapping{
+        let foo_map = Mapping {
             information_id: Uuid::new_v4(),
             data_field_id: Uuid::new_v4(),
-            transformation: Transformation{
+            transformation: Transformation {
                 other_to_local_info: "{v}/100".to_string(),
                 local_info_to_other: "{v}*100".to_string(),
                 replace_from: "{v}".to_string(),
             },
         };
 
-        let info_map_lookup = HashMap::from_iter(vec![
-            ("foo", (&foo_field, &foo_map))
-        ]);
-        
+        let info_map_lookup = HashMap::from_iter(vec![("foo", (&foo_field, &foo_map))]);
+
         apply_info_substitutions(
-            &mut statement, 
-            &info_map_lookup, 
+            &mut statement,
+            &info_map_lookup,
             &SourcePermission {
                 columns: ColumnPermission {
                     allowed_columns: HashSet::from_iter(
@@ -330,9 +312,9 @@ mod tests {
                 },
                 rows: RowPermission {
                     allowed_rows: "col1='123'".to_string(),
-                }
+                },
             },
-            "entityname"
+            "entityname",
         )?;
 
         println!("Post sub statement {statement}");

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::error::Result;
 
 use crate::model::query::RawQueryRequest;
@@ -30,7 +28,7 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<Statement>
 
     let dialect = AnsiDialect {};
 
-    let mut ast = Parser::parse_sql(&dialect, &sql)
+    let mut ast = Parser::parse_sql(&dialect, sql)
         .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
     if ast.len() != 1 {
@@ -331,10 +329,23 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
                 "MatchAgainst query expressions are not allowed".into(),
             ))
         }
-        Expr::RLike { negated, expr, pattern, regexp } => todo!(),
-        Expr::Convert {expr , data_type, charset, target_before_value } => todo!(),
-        Expr::Struct { values, fields } => todo!(),
-        Expr::Named { expr, name } => todo!(),
+        Expr::RLike {
+            negated: _,
+            expr: _,
+            pattern: _,
+            regexp: _,
+        } => todo!(),
+        Expr::Convert {
+            expr: _,
+            data_type: _,
+            charset: _,
+            target_before_value: _,
+        } => todo!(),
+        Expr::Struct {
+            values: _,
+            fields: _,
+        } => todo!(),
+        Expr::Named { expr: _, name: _ } => todo!(),
     }
     Ok(())
 }
@@ -539,12 +550,9 @@ mod tests {
     use std::collections::HashMap;
 
     use arrow_schema::Schema;
-    use uuid::Uuid;
 
     use crate::error::Result;
-    use crate::model::query::{
-        InfoSubstitution, RawQueryRequest, SourceSubstitution, SubstitutionBlocks,
-    };
+    use crate::model::query::{RawQueryRequest, SourceSubstitution, SubstitutionBlocks};
 
     use super::validate_sql_template;
 

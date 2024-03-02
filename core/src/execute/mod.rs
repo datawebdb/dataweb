@@ -1,8 +1,8 @@
 pub mod data_stores;
-pub(crate) mod parse_utils;
-pub(crate) mod planning;
 mod map_local;
 mod map_remote;
+pub(crate) mod parse_utils;
+pub(crate) mod planning;
 pub mod result_manager;
 pub mod utils;
 pub mod validation;
@@ -24,7 +24,7 @@ use crate::{
 };
 
 use datafusion::sql::sqlparser::ast::Statement;
-use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, Visit, VisitMut, VisitorMut};
+use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, VisitMut, VisitorMut};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -104,13 +104,7 @@ pub async fn request_to_local_queries(
     for ((con, source), mappings) in sources {
         let permission =
             evaluate_permission_policies(db, direct_requester, requesting_user, &source).await?;
-        let source_mapped_sql = map_sql(
-            query.to_owned(),
-            &con,
-            &source,
-            &mappings,
-            permission,
-        )?;
+        let source_mapped_sql = map_sql(query.to_owned(), &con, &source, &mappings, permission)?;
         queries.push((
             source.id,
             Query {

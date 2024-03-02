@@ -3,8 +3,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use arrow_array::RecordBatch;
-use arrow_flight::decode::FlightRecordBatchStream;
-use arrow_flight::error::FlightError;
+
 use arrow_flight::sql::client::FlightSqlServiceClient;
 
 use arrow_schema::Schema;

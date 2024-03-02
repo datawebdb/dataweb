@@ -56,6 +56,8 @@ pub(crate) fn projected_filtered_query(
         offset: None,
         fetch: None,
         locks: vec![],
+        limit_by: vec![],
+        for_clause: None,
     }
 }
 

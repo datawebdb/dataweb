@@ -36,21 +36,21 @@ pub(crate) fn map_sql(
     _con: &DataConnection,
     source: &DataSource,
     mappings: &[(Entity, Information, DataField, Mapping)],
-    alias_mappings: &Option<ScopedOriginatorMappings>,
     permission: SourcePermission,
 ) -> Result<Statement> {
     apply_source_substitutions(&mut statement, source, &permission)?;
 
+    let entity_name = &mappings[0].0.name;
     let mut info_map_lookup = HashMap::with_capacity(mappings.len());
-    for (entity, info, field, map) in mappings.iter() {
+    for (_, info, field, map) in mappings.iter() {
         info_map_lookup.insert(info.name.as_str(), (field, map));
     }
 
     apply_info_substitutions(
         &mut statement,
         &info_map_lookup,
-        alias_mappings,
         &permission,
+        entity_name,
     )?;
 
     Ok(statement)
@@ -149,18 +149,26 @@ pub(crate) fn substitute_and_transform_info(
 fn apply_info_substitutions(
     statement: &mut Statement,
     info_map_lookup: &HashMap<&str, (&DataField, &Mapping)>,
-    alias_mappings: &Option<ScopedOriginatorMappings>,
     permission: &SourcePermission,
+    entity_name: &str,
 ) -> Result<()> {
 
     let r = visit_expressions_mut(statement, |expr| {
         let info_name = match &expr{
-            Expr::Identifier(iden) => {
-                iden.to_string()
-            },
             Expr::CompoundIdentifier(idens) => {
-                idens.iter()
-                .join(".")
+                if idens.len()!=2{
+                    return std::ops::ControlFlow::Continue(())
+                }
+                match (idens.get(0), idens.get(1)){
+                    (Some(ent), Some(info)) => {
+                        if ent.value==entity_name{
+                            &info.value
+                        } else{
+                            return std::ops::ControlFlow::Continue(())
+                        }
+                    },
+                    _ => return std::ops::ControlFlow::Continue(())
+                }
             },
             _ => return std::ops::ControlFlow::Continue(())
         };
@@ -168,6 +176,7 @@ fn apply_info_substitutions(
         let (field, map) = match info_map_lookup.get(info_name.as_str()) {
             Some(info_map) => info_map,
             None => {
+                *expr = null_lit_expr();
                 return std::ops::ControlFlow::Continue(())
             }
         };
@@ -202,12 +211,17 @@ fn apply_info_substitutions(
 mod tests {
 
     use std::collections::{HashMap, HashSet};
+    use std::sync::Arc;
 
+    use crate::execute::planning::EntityContext;
     use crate::model::access_control::{ColumnPermission, RowPermission, SourcePermission};
     use crate::model::data_stores::options::SourceOptions;
     use crate::model::data_stores::DataField;
     use crate::model::mappings::{Mapping, Transformation};
+    use arrow_schema::{DataType, Field, Schema};
+    use datafusion::sql::planner::SqlToRel;
     use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
+    use datafusion_federation_sql::query_to_sql;
     use uuid::Uuid;
 
     use crate::{
@@ -220,13 +234,25 @@ mod tests {
 
     #[test]
     fn test_source_substitution() -> Result<()> {
-        let sql = "select foo, bar from (select * from tablename);";
+        let sql = "select foo, bar from (select * from entityname);";
         let dialect = AnsiDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
-        let mut statement = ast.remove(0);
+        let statement = ast.remove(0);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("foo", DataType::Utf8, false),
+            Field::new("bar", DataType::UInt8, false),
+        ]));
+        
+        let context_provider = EntityContext::new("entityname", schema);
+        let sql_to_rel = SqlToRel::new(&context_provider);
+        let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
+        let mut statement = query_to_sql(&logical_plan)?;
+
+        println!("Round trip statement: {statement}");
 
         apply_source_substitutions(
             &mut statement,
@@ -249,12 +275,14 @@ mod tests {
             },
         )?;
 
+        println!("Post sub statement {statement}");
+
         assert!(
             (statement.to_string() ==
-            "SELECT foo, bar FROM (SELECT * FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))".to_string())
+            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
             ||
             (statement.to_string() ==
-            "SELECT foo, bar FROM (SELECT * FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123'))".to_string())
+            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
         );
 
         Ok(())
@@ -262,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_info_substitution() -> Result<()> {
-        let sql = "SELECT foo, bar FROM (SELECT * FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))";
+        let sql = "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
         let dialect = AnsiDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)
@@ -294,7 +322,6 @@ mod tests {
         apply_info_substitutions(
             &mut statement, 
             &info_map_lookup, 
-            &None, 
             &SourcePermission {
                 columns: ColumnPermission {
                     allowed_columns: HashSet::from_iter(
@@ -304,11 +331,15 @@ mod tests {
                 rows: RowPermission {
                     allowed_rows: "col1='123'".to_string(),
                 }
-        })?;
+            },
+            "entityname"
+        )?;
+
+        println!("Post sub statement {statement}");
 
         assert_eq!(
             statement.to_string() ,
-            "SELECT field.path / 100, NULL FROM (SELECT * FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))".to_string()
+            "SELECT field.path / 100, NULL FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string()
         );
 
         Ok(())

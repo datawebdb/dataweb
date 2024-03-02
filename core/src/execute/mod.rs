@@ -1,5 +1,6 @@
 pub mod data_stores;
 pub(crate) mod parse_utils;
+pub(crate) mod planning;
 mod map_local;
 mod map_remote;
 pub mod result_manager;
@@ -108,7 +109,6 @@ pub async fn request_to_local_queries(
             &con,
             &source,
             &mappings,
-            &raw_request.originator_mappings,
             permission,
         )?;
         queries.push((

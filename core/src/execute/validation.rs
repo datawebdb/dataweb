@@ -331,6 +331,10 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
                 "MatchAgainst query expressions are not allowed".into(),
             ))
         }
+        Expr::RLike { negated, expr, pattern, regexp } => todo!(),
+        Expr::Convert {expr , data_type, charset, target_before_value } => todo!(),
+        Expr::Struct { values, fields } => todo!(),
+        Expr::Named { expr, name } => todo!(),
     }
     Ok(())
 }

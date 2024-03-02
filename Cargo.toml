@@ -16,13 +16,13 @@ version = "0.0.1"
 edition = "2021"
 
 [workspace.dependencies]
-arrow = "47.0.0"
-arrow-flight = { version="47.0.0", features = ["flight-sql-experimental"]}
-arrow-schema = { version="47.0.0", features = ["serde"]}
-arrow-array = "47.0.0"
-arrow-json = "47.0.0"
+arrow = "49.0.0"
+arrow-flight = { version="49.0.0", features = ["flight-sql-experimental"]}
+arrow-schema = { version="49.0.0", features = ["serde"]}
+arrow-array = "49.0.0"
+arrow-json = "49.0.0"
 async-trait = "0.1.74"
-datafusion = { version = "32.0.0" }
+datafusion = { version = "34.0.0" }
 itertools = "0.11.0"
 serde = { version="1.0.189", features = ["derive"] }
 serde_json = "1.0.107"

@@ -114,11 +114,10 @@ impl QueryRunner for FlightSQLRunner {
                 "FlightEndpoint missing ticket!".to_string(),
             ))?;
             let flight_data = client.do_get(ticket).await?;
-            flight_data_streams.push(flight_data.map_err(FlightError::Tonic));
+            flight_data_streams.push(flight_data);
         }
 
-        let flight_data_stream = futures::stream::select_all(flight_data_streams);
-        let record_batch_stream = FlightRecordBatchStream::new_from_flight_data(flight_data_stream);
+        let record_batch_stream = futures::stream::select_all(flight_data_streams);
 
         match query.return_schema {
             Some(schema) => {

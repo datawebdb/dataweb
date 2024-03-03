@@ -191,7 +191,7 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    let statement = validate_sql_template(&query)?;
+    let (entity_name, statement) = validate_sql_template(&query)?;
 
     debug!("Creating QueryRequest");
     let request = match create_query_request(
@@ -219,6 +219,7 @@ async fn query(
     let created_tasks = map_and_create_local_tasks(
         &statement,
         &query,
+        &entity_name,
         &request,
         &mut db,
         &direct_requester,
@@ -229,7 +230,9 @@ async fn query(
     debug!("Mapping QueryRequest to remote queries");
     let created_remote_tasks = map_and_create_remote_tasks(
         &query,
+        &statement,
         &request,
+        &entity_name,
         &mut db,
         requesting_user,
         originating_relay,

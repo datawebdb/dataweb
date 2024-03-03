@@ -8,6 +8,7 @@ use arrow_flight::{FlightClient, FlightEndpoint};
 use arrow_schema::{Field, Schema};
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::sql::sqlparser::ast::Statement;
 use diesel_async::pooled_connection::bb8::Pool;
 
 use diesel_async::AsyncPgConnection;
@@ -235,7 +236,9 @@ impl FlightRelay {
         &self,
         mut response: FlightInfo,
         db: &mut PgDb<'_>,
-        query: &RawQueryRequest,
+        raw_request: &RawQueryRequest,
+        query: &Statement,
+        entity_name: &str,
         request: &QueryRequest,
         originating_relay: Relay,
         requesting_user: User,
@@ -243,7 +246,9 @@ impl FlightRelay {
         debug!("Mapping QueryRequest to remote queries");
         let remote_requests = request_to_remote_requests(
             db,
+            raw_request,
             query,
+            entity_name,
             &request.originator_request_id,
             originating_relay,
             requesting_user,
@@ -548,7 +553,7 @@ impl FlightService for FlightRelay {
         }
 
         debug!("Checking if sql is valid...");
-        let statement = validate_sql_template(&query).map_err(|e| {
+        let (entity_name, statement) = validate_sql_template(&query).map_err(|e| {
             Status::invalid_argument(format!("Query validation failed with error {e}"))
         })?;
 
@@ -579,6 +584,7 @@ impl FlightService for FlightRelay {
         let created_tasks = map_and_create_local_tasks(
             &statement,
             &query,
+            &entity_name,
             &request,
             &mut db,
             &direct_requester,
@@ -599,6 +605,8 @@ impl FlightService for FlightRelay {
                 response,
                 &mut db,
                 &query,
+                &statement,
+                &entity_name,
                 &request,
                 originating_relay,
                 requesting_user,

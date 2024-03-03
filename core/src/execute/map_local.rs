@@ -20,8 +20,8 @@ use crate::{
 };
 
 use super::parse_utils::{
-    iden_str_to_select_item, null_lit_expr, parse_sql_as_expr, parse_sql_as_table_factor,
-    projected_filtered_query, substitute_table_factor,
+    apply_col_iden_mapping, iden_str_to_select_item, null_lit_expr, parse_sql_as_expr,
+    parse_sql_as_table_factor, projected_filtered_query, substitute_table_factor,
 };
 use super::visit_table_factor_mut;
 
@@ -29,19 +29,12 @@ use super::visit_table_factor_mut;
 /// into an ast
 pub(crate) fn map_sql(
     mut statement: Statement,
-    _con: &DataConnection,
+    entity_name: &str,
     source: &DataSource,
-    mappings: &[(Entity, Information, DataField, Mapping)],
+    info_map_lookup: &HashMap<&str, (&DataField, &Mapping)>,
     permission: SourcePermission,
 ) -> Result<Statement> {
     apply_source_substitutions(&mut statement, source, &permission)?;
-
-    let entity_name = &mappings[0].0.name;
-    let mut info_map_lookup = HashMap::with_capacity(mappings.len());
-    for (_, info, field, map) in mappings.iter() {
-        info_map_lookup.insert(info.name.as_str(), (field, map));
-    }
-
     apply_info_substitutions(&mut statement, &info_map_lookup, &permission, entity_name)?;
 
     Ok(statement)
@@ -102,76 +95,33 @@ fn apply_source_substitutions(
     Ok(())
 }
 
-pub(crate) fn substitute_and_transform_info(
-    _replaced: String,
-    _info_key: &str,
-    _left_capture: &str,
-    _right_capture: &str,
-    _scoped_alias_mappings: &Option<ScopedOriginatorMappings>,
-    _transformed_info_sql: String,
-    _block: &InfoSubstitution,
-    _field: &DataField,
-) -> Result<String> {
-    //deleteme
-    todo!()
-}
-
 fn apply_info_substitutions(
     statement: &mut Statement,
     info_map_lookup: &HashMap<&str, (&DataField, &Mapping)>,
     permission: &SourcePermission,
     entity_name: &str,
 ) -> Result<()> {
-    let r = visit_expressions_mut(statement, |expr| {
-        let info_name = match &expr {
-            Expr::CompoundIdentifier(idens) => {
-                if idens.len() != 2 {
-                    return std::ops::ControlFlow::Continue(());
-                }
-                match (idens.first(), idens.get(1)) {
-                    (Some(ent), Some(info)) => {
-                        if ent.value == entity_name {
-                            &info.value
-                        } else {
-                            return std::ops::ControlFlow::Continue(());
-                        }
-                    }
-                    _ => return std::ops::ControlFlow::Continue(()),
-                }
+    // Apply permission to info mappings to filter out disallowed columns
+    let allowed_cols = &permission.columns.allowed_columns;
+    let filtered_map = info_map_lookup
+        .iter()
+        .filter_map(|(info, (df, map))| {
+            let col = &df.path;
+            if let Some(_) = allowed_cols.get(col) {
+                let transform = &map.transformation;
+                Some((
+                    *info,
+                    transform
+                        .other_to_local_info
+                        .replace(&transform.replace_from, col),
+                ))
+            } else {
+                None
             }
-            _ => return std::ops::ControlFlow::Continue(()),
-        };
+        })
+        .collect::<HashMap<_, _>>();
 
-        let (field, map) = match info_map_lookup.get(info_name.as_str()) {
-            Some(info_map) => info_map,
-            None => {
-                *expr = null_lit_expr();
-                return std::ops::ControlFlow::Continue(());
-            }
-        };
-
-        let transform = &map.transformation;
-        let transformed_info_sql = transform
-            .other_to_local_info
-            .replace(&transform.replace_from, &field.path);
-
-        if permission.columns.allowed_columns.contains(&field.path) {
-            // Short circuit on error and immediately return error
-            match parse_sql_as_expr(&transformed_info_sql) {
-                Ok(transformed_expr) => *expr = transformed_expr,
-                Err(e) => return std::ops::ControlFlow::Break(Err(e)),
-            };
-        } else {
-            *expr = null_lit_expr();
-        }
-
-        std::ops::ControlFlow::Continue(())
-    });
-
-    // Raise error if traversal short circuited with an error
-    if let std::ops::ControlFlow::Break(e) = r {
-        return e;
-    }
+    apply_col_iden_mapping(statement, &filtered_map, entity_name)?;
 
     Ok(())
 }

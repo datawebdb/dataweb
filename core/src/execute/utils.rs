@@ -239,13 +239,21 @@ pub async fn create_query_request(
 pub async fn map_and_create_local_tasks(
     query: &Statement,
     raw_request: &RawQueryRequest,
+    entity_name: &str,
     request: &QueryRequest,
     db: &mut PgDb<'_>,
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<QueryTask>> {
-    let queries =
-        request_to_local_queries(db, query, raw_request, direct_requester, requesting_user).await?;
+    let queries = request_to_local_queries(
+        db,
+        query,
+        entity_name,
+        raw_request,
+        direct_requester,
+        requesting_user,
+    )
+    .await?;
     debug!("Creating {} local tasks!", queries.len());
     let mut tasks = Vec::with_capacity(queries.len());
     for (data_source_id, q) in queries {
@@ -263,15 +271,19 @@ pub async fn map_and_create_local_tasks(
 /// Helper function that maps a [RawQueryRequest] to [Querys][crate::model::query::Query] for all relevant local
 /// data sources and stores the needed info in the database as [RemoteQueryTasks][crate::model::query::Query].
 pub async fn map_and_create_remote_tasks(
-    query: &RawQueryRequest,
+    raw_request: &RawQueryRequest,
+    query: &Statement,
     request: &QueryRequest,
+    entity_name: &str,
     db: &mut PgDb<'_>,
     requesting_user: User,
     originating_relay: Relay,
 ) -> Result<Vec<QueryTaskRemote>> {
     let remote_requests = request_to_remote_requests(
         db,
+        raw_request,
         query,
+        entity_name,
         &request.originator_request_id,
         originating_relay,
         requesting_user,

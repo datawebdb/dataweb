@@ -78,7 +78,7 @@ impl<'a> PgDb<'a> {
 
     pub async fn get_mappings_by_entity_names(
         &mut self,
-        entity_name_vals: Vec<String>,
+        entity_name_vals: Vec<&str>,
     ) -> Result<HashMap<(DataConnection, DataSource), Vec<(Entity, Information, DataField, Mapping)>>>
     {
         use schema::data_connection::dsl as conn;

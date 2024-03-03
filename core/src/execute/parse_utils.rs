@@ -2,13 +2,17 @@ use std::collections::{HashMap, HashSet};
 
 use datafusion::sql::sqlparser::{
     ast::{
-        visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins
+        visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr,
+        Statement, TableFactor, TableWithJoins,
     },
     dialect::AnsiDialect,
     parser::Parser,
 };
 
-use crate::{error::{MeshError, Result}, model::access_control::SourcePermission};
+use crate::{
+    error::{MeshError, Result},
+    model::access_control::SourcePermission,
+};
 
 use super::visit_table_factor_mut;
 
@@ -84,7 +88,10 @@ pub(crate) fn iden_str_to_select_item(iden: &str) -> Result<SelectItem> {
 }
 
 /// Rewrites [Statement] replacing all TableFactor::Table instances with the provided new_table
-pub(crate) fn substitute_table_factor(statement: &mut Statement, new_table: TableFactor) -> Result<()>{
+pub(crate) fn substitute_table_factor(
+    statement: &mut Statement,
+    new_table: TableFactor,
+) -> Result<()> {
     visit_table_factor_mut(statement, |table| {
         if let TableFactor::Table { alias, .. } = table {
             // Subsitute in the alias for the table being replaced into the inner derived table
@@ -104,6 +111,32 @@ pub(crate) fn substitute_table_factor(statement: &mut Statement, new_table: Tabl
     Ok(())
 }
 
+/// Checks if the passed expression is a column identifier which is a piece of information about the passed
+/// entity_name. If so, returns the portion of the iden that refers to the information.
+///
+/// Expressions are assumed to be normalized by logical planning into a two part identifier like
+/// `Entity Name`.`Info Name`.
+fn maybe_extract_info<'a>(expr: &'a Expr, entity_name: &'a str) -> Option<&'a String> {
+    match &expr {
+        Expr::CompoundIdentifier(idens) => {
+            if idens.len() != 2 {
+                return None;
+            }
+            match (idens.first(), idens.get(1)) {
+                (Some(ent), Some(info)) => {
+                    if ent.value == entity_name {
+                        Some(&info.value)
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+        }
+        _ => return None,
+    }
+}
+
 /// Rewrites [Statement] replacing all Expr::CompoundIdentifiers for the passed entity_name.
 /// These are assumed to be normalized by logical planning into a two part identifier like
 /// `Entity Name`.`Info Name`.
@@ -113,23 +146,9 @@ pub(crate) fn apply_col_iden_mapping(
     entity_name: &str,
 ) -> Result<()> {
     let r = visit_expressions_mut(statement, |expr| {
-        let info_name = match &expr {
-            Expr::CompoundIdentifier(idens) => {
-                if idens.len() != 2 {
-                    return std::ops::ControlFlow::Continue(());
-                }
-                match (idens.first(), idens.get(1)) {
-                    (Some(ent), Some(info)) => {
-                        if ent.value == entity_name {
-                            &info.value
-                        } else {
-                            return std::ops::ControlFlow::Continue(());
-                        }
-                    }
-                    _ => return std::ops::ControlFlow::Continue(()),
-                }
-            }
-            _ => return std::ops::ControlFlow::Continue(()),
+        let info_name = match maybe_extract_info(expr, entity_name) {
+            Some(i) => i,
+            None => return std::ops::ControlFlow::Continue(()),
         };
 
         let transformed_info_sql = match info_map_lookup.get(info_name.as_str()) {

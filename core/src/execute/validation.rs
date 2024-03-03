@@ -5,8 +5,8 @@ use crate::model::query::RawQueryRequest;
 use crate::error::MeshError;
 
 use datafusion::sql::sqlparser::ast::{
-    Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow, Select,
-    SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
+    visit_relations, Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow,
+    Select, SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
 };
 use datafusion::sql::sqlparser::dialect::AnsiDialect;
 use datafusion::sql::sqlparser::parser::Parser;
@@ -15,7 +15,7 @@ use datafusion::sql::sqlparser::parser::Parser;
 /// For example, specifying a raw table name instead of using a
 /// [SourceSubstitution][crate::model::query::SourceSubstitution] is disallowed as this would enable crafting
 /// queries to bypass access controls.
-pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<Statement> {
+pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<(String, Statement)> {
     let sql = &raw_request.sql;
 
     if sql.len() > 1_000_000 {
@@ -50,7 +50,30 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<Statement>
         }
     }
 
-    Ok(statement)
+    let entity = get_entity_for_statement(&statement)?;
+
+    Ok((entity, statement))
+}
+
+/// Each [Statement] should only reference a single [Entity]. Verifies this is the case
+/// and returns the name of that Entity.
+fn get_entity_for_statement(statement: &Statement) -> Result<String> {
+    let mut entities = vec![];
+    visit_relations(statement, |relation| {
+        let entity = relation.to_string();
+        if !entities.contains(&entity) {
+            entities.push(entity);
+        }
+        std::ops::ControlFlow::<()>::Continue(())
+    });
+
+    if entities.len() != 1 {
+        return Err(MeshError::InvalidQuery(
+            "There must be exactly one entity per query.".to_string(),
+        ));
+    }
+
+    Ok(entities.remove(0))
 }
 
 fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {

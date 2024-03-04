@@ -21,7 +21,7 @@ use crate::model::user::User;
 use crate::{
     crud::PgDb,
     error::MeshError,
-    model::query::{Query, SourceSubstitution},
+    model::query::{Query},
 };
 
 use datafusion::sql::sqlparser::ast::Statement;
@@ -78,7 +78,7 @@ pub async fn request_to_local_queries(
     let sources = db.get_mappings_by_entity_names(vec![entity_name]).await?;
 
     let mut queries = Vec::with_capacity(sources.len());
-    for ((con, source), mappings) in sources {
+    for ((_, source), mappings) in sources {
         let mut info_map_lookup = HashMap::with_capacity(mappings.len());
         for (_, info, field, map) in mappings.iter() {
             if let Some(_) = info_map_lookup.insert(info.name.as_str(), (field, map)) {
@@ -209,12 +209,10 @@ pub async fn request_to_remote_requests(
             relay.id,
             RawQueryRequest {
                 sql: mapped_query.to_string(),
-                substitution_blocks: raw_request.substitution_blocks.clone(),
                 request_uuid: Some(*request_uuid),
                 requesting_user: Some(requesting_user.clone()),
                 originating_relay: Some(originating_relay.clone()),
                 originating_task_id: raw_request.originating_task_id,
-                originator_mappings: raw_request.originator_mappings.clone(),
                 return_arrow_schema: raw_request.return_arrow_schema.clone(),
             },
         ))

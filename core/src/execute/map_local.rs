@@ -8,8 +8,6 @@ use crate::error::Result;
 
 use crate::model::access_control::SourcePermission;
 
-use crate::model::query::{InfoSubstitution, ScopedOriginatorMappings};
-
 use crate::{
     error::MeshError,
     model::{
@@ -228,7 +226,6 @@ mod tests {
             data_field_id: Uuid::new_v4(),
             transformation: Transformation {
                 other_to_local_info: "{v}/100".to_string(),
-                local_info_to_other: "{v}*100".to_string(),
                 replace_from: "{v}".to_string(),
             },
         };

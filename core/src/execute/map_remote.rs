@@ -4,15 +4,11 @@ use crate::error::Result;
 use crate::model::data_stores::DataField;
 use crate::model::entity::{Entity, Information};
 use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping};
-use crate::model::query::{
-    default_scope, InfoSubstitution, OriginatorEntityMapping, OriginatorInfoMapping,
-    OriginatorMappings, RawQueryRequest, ScopedOriginatorMappings,
-};
+
 use crate::model::relay::Relay;
 use crate::model::user::User;
 use crate::{
     error::MeshError,
-    model::query::{SourceSubstitution, SubstitutionBlocks},
 };
 
 use datafusion::sql::sqlparser::ast::Statement;
@@ -23,7 +19,6 @@ use uuid::Uuid;
 use super::parse_utils::{
     apply_col_iden_mapping, parse_sql_as_table_factor, substitute_table_factor,
 };
-use super::utils::compose_derived_source_substitution;
 
 /// Substitutes appropriate [Entity][crate::model::entity::Entity] and
 /// [Information][crate::model::entity::Information] names for a specific remote relay
@@ -86,7 +81,6 @@ mod tests {
     use crate::model::data_stores::options::SourceOptions;
     use crate::model::data_stores::DataField;
     use crate::model::mappings::{Mapping, RemoteEntityMapping, RemoteInfoMapping, Transformation};
-    use crate::model::query::{InfoSubstitution, SubstitutionBlocks};
     use arrow_schema::{DataType, Field, Schema};
     use datafusion::sql::planner::SqlToRel;
     use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
@@ -125,15 +119,9 @@ mod tests {
             &RemoteEntityMapping{
                 id: Uuid::new_v4(),
                 sql: "select * from test".to_string(),
-                substitution_blocks: SubstitutionBlocks{
-                    info_substitutions: HashMap::new(),
-                    source_substitutions: HashMap::new(),
-                    num_capture_braces: 1,
-                },
                 relay_id: Uuid::new_v4(),
                 entity_id: Uuid::new_v4(),
                 remote_entity_name: "test".to_string(),
-                needs_subquery_transformation: true,
             },
         )?;
 
@@ -164,10 +152,8 @@ mod tests {
             remote_entity_mapping_id: Uuid::new_v4(),
             information_id: Uuid::new_v4(),
             info_mapped_name: "remote_info".to_string(),
-            literal_derived_field: false,
             transformation: Transformation {
                 other_to_local_info: "{v}/100".to_string(),
-                local_info_to_other: "{v}*100".to_string(),
                 replace_from: "{v}".to_string(),
             },
         };

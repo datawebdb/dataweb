@@ -127,11 +127,9 @@ CREATE TABLE user_source_permission (
 CREATE TABLE remote_entity_mapping (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     sql VARCHAR NOT NULL,
-    substitution_blocks jsonb NOT NULL,
     relay_id uuid NOT NULL REFERENCES relays(id),
     entity_id uuid NOT NULL REFERENCES entities(id),
     remote_entity_name varchar not null,
-    needs_subquery_transformation bool not null,
     UNIQUE(relay_id, entity_id, remote_entity_name)
 );
 
@@ -140,7 +138,6 @@ CREATE TABLE remote_info_mapping (
     remote_entity_mapping_id uuid NOT NULL REFERENCES remote_entity_mapping(id),
     information_id uuid NOT NULL REFERENCES information(id),
     info_mapped_name varchar not null,
-    literal_derived_field bool not null,
     transformation jsonb NOT NULL,
     UNIQUE(remote_entity_mapping_id, information_id)
 );

@@ -16,7 +16,6 @@ use mesh::model::config_commands::user::ResolvedUserDeclaration;
 use mesh::model::config_commands::ResolvedConfigObject;
 use mesh::model::entity::ArrowDataType;
 use mesh::model::mappings::{Mapping, NewRemoteEntityMapping, RemoteInfoMapping};
-use mesh::model::query::SubstitutionBlocks;
 use mesh::model::relay::NewRelay;
 use mesh::model::user::{NewUser, UserAttributes};
 use mesh::model::{
@@ -192,23 +191,15 @@ async fn process_remote_map_decl(
         let entity_map = match &peer_map.entity_map {
             Some(map) => NewRemoteEntityMapping {
                 sql: map.sql.clone(),
-                substitution_blocks: map.substitution_blocks.clone(),
                 relay_id: relay.id,
                 entity_id: entity.id,
                 remote_entity_name: peer_map.remote_entity_name.clone(),
-                needs_subquery_transformation: true,
             },
             None => NewRemoteEntityMapping {
                 sql: "".to_string(),
-                substitution_blocks: SubstitutionBlocks {
-                    info_substitutions: HashMap::new(),
-                    source_substitutions: HashMap::new(),
-                    num_capture_braces: 1,
-                },
                 relay_id: relay.id,
                 entity_id: entity.id,
                 remote_entity_name: peer_map.remote_entity_name.clone(),
-                needs_subquery_transformation: false,
             },
         };
 
@@ -219,7 +210,6 @@ async fn process_remote_map_decl(
                 remote_entity_mapping_id: entity_map.id,
                 information_id: local_info.id,
                 info_mapped_name: map.info_mapped_name,
-                literal_derived_field: map.literal_derived_field,
                 transformation: map.transformation,
             };
             db.upsert_remote_info_mapping(&newmap).await?;

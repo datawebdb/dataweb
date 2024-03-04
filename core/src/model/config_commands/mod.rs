@@ -104,7 +104,6 @@ pub(crate) fn no_entitymap() -> Option<EntityMapDecl> {
 pub(crate) fn no_transformation() -> Transformation {
     Transformation {
         other_to_local_info: "{value}".to_string(),
-        local_info_to_other: "{value}".to_string(),
         replace_from: "{value}".to_string(),
     }
 }

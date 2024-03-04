@@ -575,33 +575,20 @@ mod tests {
     use arrow_schema::Schema;
 
     use crate::error::Result;
-    use crate::model::query::{RawQueryRequest, SourceSubstitution, SubstitutionBlocks};
+    use crate::model::query::{RawQueryRequest};
 
     use super::validate_sql_template;
 
     #[test]
     fn insert_into_test() -> Result<()> {
         let sql = "insert into user_tables values (1,2)".to_string();
-
-        let mut source_substitutions = HashMap::new();
-        source_substitutions.insert(
-            "user_tables".to_string(),
-            SourceSubstitution::AllSourcesWith(vec!["test".to_string()]),
-        );
-
-        let substitution_blocks = SubstitutionBlocks {
-            info_substitutions: HashMap::new(),
-            source_substitutions,
-            num_capture_braces: 1,
-        };
+    
         let raw_request = RawQueryRequest {
             sql,
-            substitution_blocks,
             request_uuid: None,
             requesting_user: None,
             originating_relay: None,
             originating_task_id: None,
-            originator_mappings: None,
             return_arrow_schema: Some(Schema::empty()),
         };
 
@@ -618,25 +605,12 @@ mod tests {
     fn escape_query_test() -> Result<()> {
         let sql = "with user_tables as (select * from user_tables) select * from user_tables; select * from user_tables".to_string();
 
-        let mut source_substitutions = HashMap::new();
-        source_substitutions.insert(
-            "user_tables".to_string(),
-            SourceSubstitution::AllSourcesWith(vec!["test".to_string()]),
-        );
-
-        let substitution_blocks = SubstitutionBlocks {
-            info_substitutions: HashMap::new(),
-            source_substitutions,
-            num_capture_braces: 1,
-        };
         let raw_request = RawQueryRequest {
             sql,
-            substitution_blocks,
             request_uuid: None,
             requesting_user: None,
             originating_relay: None,
             originating_task_id: None,
-            originator_mappings: None,
             return_arrow_schema: Some(Schema::empty()),
         };
 
@@ -659,25 +633,14 @@ mod tests {
             sql.insert_str(0, statement.as_str());
         }
 
-        let mut source_substitutions = HashMap::new();
-        source_substitutions.insert(
-            "user_tables".to_string(),
-            SourceSubstitution::AllSourcesWith(vec!["test".to_string()]),
-        );
+ 
 
-        let substitution_blocks = SubstitutionBlocks {
-            info_substitutions: HashMap::new(),
-            source_substitutions,
-            num_capture_braces: 1,
-        };
         let raw_request = RawQueryRequest {
             sql,
-            substitution_blocks,
             request_uuid: None,
             requesting_user: None,
             originating_relay: None,
             originating_task_id: None,
-            originator_mappings: None,
             return_arrow_schema: Some(Schema::empty()),
         };
 

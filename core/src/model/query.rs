@@ -32,7 +32,6 @@ pub struct RawQueryRequest {
     /// A raw SQL string, expressed in terms of [Entity][crate::model::entity::Entity]
     /// and [Information][crate::model::entity::Information].
     pub sql: String,
-    pub substitution_blocks: SubstitutionBlocks,
     /// This is the globally unique [Uuid] for the query request, which is required for handling
     /// cyclical relay network topologies. If the same Uuid is encountered twice, the request should be
     /// acknowledged as already in progress.
@@ -44,12 +43,6 @@ pub struct RawQueryRequest {
     pub originating_relay: Option<Relay>,
     /// This Uuid identifies the remote task on the originating relay which ultimately triggered this request
     pub originating_task_id: Option<Uuid>,
-    /// In the case of multiple hops between the originating_relay and the ultimate executing [Relay],
-    /// we need to keep track of how Entity and Information names map back to the originator,
-    /// since the executor will short-circuit the intermediate hops and send data over Flight gRPC
-    /// directly to the originator, and each relay only permanently stores mappings to its direct neighbors.
-    #[serde(default = "no_mappings")]
-    pub originator_mappings: Option<ScopedOriginatorMappings>,
     /// If Passed, each relay will cast the returned RecordBatchStream to the requested [Schema].
     /// If not passed, the schema may vary slightly based on the QueryRunner and DataSource, due to
     /// e.g. how the schema of a JSON or CSV file is inferred.
@@ -69,49 +62,8 @@ fn no_relay() -> Option<Relay> {
     None
 }
 
-fn no_mappings() -> Option<ScopedOriginatorMappings> {
-    None
-}
-
 fn no_uuid() -> Option<Uuid> {
     None
-}
-
-/// A component of a [OriginatorEntityMapping] for a specific Entity name-space
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct OriginatorInfoMapping {
-    pub originator_info_name: String,
-    pub transformation: Transformation,
-}
-
-/// A component of a [OriginatorMappings]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct OriginatorEntityMapping {
-    pub originator_entity_name: String,
-    pub originator_info_map: HashMap<String, OriginatorInfoMapping>,
-}
-
-/// A scoped version of [OriginatorMappings]. As a query propagates the network,
-/// any [Relay] may introduce a [RemoteEntityMapping][crate::model::mappings::RemoteEntityMapping].
-/// Each new subquery template added requires its own [OriginatorMappings] which is specific
-/// to the [InfoSubstitution]s of that subquery. This effectively allows for different "originator"
-/// [Relay]s for each [InfoSubstitution].
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ScopedOriginatorMappings {
-    pub inner: HashMap<String, OriginatorMappings>,
-}
-/// Keeps track of how to transform local Information back to Information on
-/// the originating [Relay], which may be an arbitrary number of hops away. The
-/// local [Relay] only stores the mappings to its direct neighbors, but must be able
-/// to map its Information to the Information of any other [Relay] in the network.
-/// This is possible by incrementally composing [Transformation]s as a query propagates
-/// through the network.
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct OriginatorMappings {
-    /// Left = Local Relay name, Right = Originating Relay name.
-    /// Outer HashMap maps entity name to entity name + inner map
-    /// which maps info name to info name (scoped to a given local entity name)
-    pub inner: HashMap<String, OriginatorEntityMapping>,
 }
 
 #[derive(
@@ -131,7 +83,6 @@ pub struct QueryRequest {
     pub sql: String,
     pub relay_id: Uuid,
     pub origin_info: QueryOriginationInfo,
-    pub substitution_blocks: SubstitutionBlocks,
 }
 
 /// Contains information about the origin of a [QueryRequest], which
@@ -267,69 +218,4 @@ pub enum FlightStreamStatus {
     Failed,
     /// A valid do_put call was received and completed successfully
     Complete,
-}
-
-/// Contains a explicit description of how a SQL template should be transformed
-/// into a SQL statement that can be executed against local [DataSource]s. Portions
-/// of the SQL template will be wrapped in curly braces, and either interpreted as
-/// Information or a description of which [DataSource]s to include
-#[derive(Debug, PartialEq, Serialize, Deserialize, AsJsonb, Clone)]
-pub struct SubstitutionBlocks {
-    pub info_substitutions: HashMap<String, InfoSubstitution>,
-    pub source_substitutions: HashMap<String, SourceSubstitution>,
-    #[serde(default = "default_capture_braces")]
-    pub num_capture_braces: usize,
-}
-
-fn default_capture_braces() -> usize {
-    1
-}
-
-/// A portion of a SQL template expressed in terms of local Information that can be substituted
-/// into DataField paths. E.g. select {user_name} from {table} may be converted into
-/// select user.full_name from {table} for a table containing a field path user.full_name mapped to
-/// the specified local Information.
-#[derive(Debug, PartialEq, Serialize, Deserialize, AsJsonb, Clone)]
-pub struct InfoSubstitution {
-    pub entity_name: String,
-    pub info_name: String,
-    /// Defines a frame of refrence for Information transformations.
-    /// See [ScopedOriginatorMappings] for detailed discussion.
-    #[serde(default = "default_scope")]
-    pub scope: String,
-    /// Whether to include the mapped Information name in the returned Arrow data.
-    /// If true, the SQL statement will include "transform({data_field_path}) as {entity_name}_{info_name}"
-    #[serde(default = "default_true")]
-    pub include_info: bool,
-    /// If true, excludes the info alias when include_info is also true, so that the SQL statement will instead
-    /// include just "transform({data_field_path})"
-    #[serde(default = "default_false")]
-    pub exclude_info_alias: bool,
-    /// Whether to include the data field in the returned Arrow data. Cannot be false if include_info is
-    /// also false.
-    #[serde(default = "default_false")]
-    pub include_data_field: bool,
-}
-
-/// The default scope identifier for [InfoSubstitution]s passed directly by a [User] to the origin [Relay].
-pub(crate) fn default_scope() -> String {
-    "origin".to_string()
-}
-
-fn default_true() -> bool {
-    true
-}
-
-fn default_false() -> bool {
-    false
-}
-
-/// Used to substitute in table identifiers into a SQL template. Each [Relay] also applies
-/// relevant access controls
-#[derive(Debug, PartialEq, Serialize, Deserialize, AsJsonb, Clone)]
-pub enum SourceSubstitution {
-    /// Infer all available sources which contain Information on any of the referenced Entities
-    AllSourcesWith(Vec<String>),
-    /// Explicitly passed list of [DataSource]s to query, by uuid
-    SourceList(Vec<Uuid>),
 }

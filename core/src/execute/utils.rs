@@ -6,9 +6,9 @@ use crate::execute::{request_to_local_queries, request_to_remote_requests};
 
 use crate::model::mappings::{RemoteEntityMapping, Transformation};
 use crate::model::query::{
-    NewQueryTask, OriginatorEntityMapping, OriginatorInfoMapping, OriginatorMappings,
+    NewQueryTask, 
     QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote, QueryTaskRemoteStatus,
-    QueryTaskStatus, RawQueryRequest, ScopedOriginatorMappings, SubstitutionBlocks,
+    QueryTaskStatus, RawQueryRequest, 
 };
 use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};
@@ -19,99 +19,6 @@ use tracing::debug;
 use uuid::Uuid;
 
 use super::Requester;
-
-/// Helper function which substitutes in a subquery template in place of a
-/// [SourceSubstitution][crate::model::query::SourceSubstitution]
-/// which maps a remote [Entity][crate::model::entity::Entity] to a local one. Local
-/// [Information][crate::model::entity::Information] may need to be derived from multiple
-/// remote informations, or even via aggregations or joins involving multiple remote informations.
-/// This is analgous to substituting a subquery into a fully formed SQL statement in place of a
-/// table identifier. Since this function deals with substituting a template into another template,
-/// it must deal with the potential of conflicting substitution keys or number of capture braces.
-pub fn compose_derived_source_substitution(
-    mut original_sql: String,
-    in_blocks: &SubstitutionBlocks,
-    left_capture: &String,
-    right_capture: &String,
-    sub_into_pattern: String,
-    entity_map: &RemoteEntityMapping,
-    out_blocks: &mut SubstitutionBlocks,
-) -> (String, Option<ScopedOriginatorMappings>) {
-    let mut sub_sql = entity_map.sql.clone();
-    let sub_blocks = entity_map.substitution_blocks.clone();
-    let sub_left_capture = "{".repeat(sub_blocks.num_capture_braces);
-    let sub_right_capture = "}".repeat(sub_blocks.num_capture_braces);
-    let different_num_capture_braces =
-        in_blocks.num_capture_braces != sub_blocks.num_capture_braces;
-
-    let new_scope = Uuid::new_v4().to_string();
-    let mut remote_as_originator_mappings = OriginatorEntityMapping {
-        originator_entity_name: entity_map.remote_entity_name.clone(),
-        originator_info_map: HashMap::new(),
-    };
-    let mut new_info_subs = HashMap::with_capacity(sub_blocks.info_substitutions.len());
-    for (key, mut sub) in sub_blocks.info_substitutions.into_iter() {
-        sub.scope = new_scope.clone();
-        remote_as_originator_mappings.originator_info_map.insert(
-            sub.info_name.clone(),
-            OriginatorInfoMapping {
-                originator_info_name: sub.info_name.clone(),
-                transformation: Transformation {
-                    other_to_local_info: "{v}".to_string(),
-                    local_info_to_other: "{v}".to_string(),
-                    replace_from: "{v}".to_string(),
-                },
-            },
-        );
-        if different_num_capture_braces
-            || in_blocks.info_substitutions.contains_key(&key)
-            || in_blocks.source_substitutions.contains_key(&key)
-        {
-            let new_key = Uuid::new_v4();
-            let new_pattern = format!("{left_capture}{new_key}{right_capture}");
-            let old_pattern = format!("{sub_left_capture}{key}{sub_right_capture}");
-            sub_sql = sub_sql.replace(&old_pattern, &new_pattern);
-
-            new_info_subs.insert(new_key.to_string(), sub);
-        } else {
-            new_info_subs.insert(key, sub);
-        }
-    }
-
-    let mut new_source_subs = HashMap::with_capacity(sub_blocks.source_substitutions.len());
-    for (key, sub) in sub_blocks.source_substitutions.into_iter() {
-        if different_num_capture_braces {
-            let new_key = Uuid::new_v4();
-            let new_pattern = format!("{left_capture}{new_key}{right_capture}");
-            let old_pattern = format!("{sub_left_capture}{key}{sub_right_capture}");
-            sub_sql = sub_sql.replace(&old_pattern, &new_pattern);
-            new_source_subs.insert(new_key.to_string(), sub);
-        } else {
-            new_source_subs.insert(key, sub);
-        }
-    }
-
-    let replacement = format!("({})", sub_sql);
-    original_sql = original_sql.replace(sub_into_pattern.as_str(), replacement.as_str());
-
-    out_blocks.info_substitutions.extend(new_info_subs);
-    out_blocks.source_substitutions.extend(new_source_subs);
-
-    let scoped_mappings = if remote_as_originator_mappings.originator_info_map.is_empty() {
-        None
-    } else {
-        let originator_mappings = OriginatorMappings {
-            inner: HashMap::from_iter(vec![(
-                entity_map.remote_entity_name.clone(),
-                remote_as_originator_mappings,
-            )]),
-        };
-        Some(ScopedOriginatorMappings {
-            inner: HashMap::from_iter(vec![(new_scope, originator_mappings)]),
-        })
-    };
-    (original_sql, scoped_mappings)
-}
 
 /// Inspects a [RawQueryRequest] along with the validated x509 certificate fingerprint
 /// of the client submitting the request, to determine the [User] which originated the request,
@@ -208,7 +115,6 @@ pub async fn create_query_request(
                     &requesting_relay.id,
                     orig_req_id,
                     &query.sql,
-                    &query.substitution_blocks,
                     &origin_info,
                 )
                 .await?)
@@ -226,7 +132,6 @@ pub async fn create_query_request(
                     &originating_relay.id,
                     &local_req_id,
                     &query.sql,
-                    &query.substitution_blocks,
                     &origin_info,
                 )
                 .await?)

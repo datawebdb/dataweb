@@ -570,19 +570,18 @@ fn validate_query_statement(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use arrow_schema::Schema;
 
     use crate::error::Result;
-    use crate::model::query::{RawQueryRequest};
+    use crate::model::query::RawQueryRequest;
 
     use super::validate_sql_template;
 
     #[test]
     fn insert_into_test() -> Result<()> {
         let sql = "insert into user_tables values (1,2)".to_string();
-    
+
         let raw_request = RawQueryRequest {
             sql,
             request_uuid: None,
@@ -632,8 +631,6 @@ mod tests {
         for _ in 0..50000 {
             sql.insert_str(0, statement.as_str());
         }
-
- 
 
         let raw_request = RawQueryRequest {
             sql,

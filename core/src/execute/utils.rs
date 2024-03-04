@@ -1,14 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::Result;
 use crate::execute::{request_to_local_queries, request_to_remote_requests};
 
-use crate::model::mappings::{RemoteEntityMapping, Transformation};
 use crate::model::query::{
-    NewQueryTask, 
-    QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote, QueryTaskRemoteStatus,
-    QueryTaskStatus, RawQueryRequest, 
+    NewQueryTask, QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote,
+    QueryTaskRemoteStatus, QueryTaskStatus, RawQueryRequest,
 };
 use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};

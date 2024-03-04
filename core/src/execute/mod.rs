@@ -7,25 +7,20 @@ pub mod result_manager;
 pub mod utils;
 pub mod validation;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::ControlFlow;
-use std::os::linux::raw;
 
 use crate::error::Result;
 use crate::model::access_control::SourcePermission;
 use crate::model::data_stores::DataSource;
-use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping};
+
 use crate::model::query::RawQueryRequest;
 use crate::model::relay::Relay;
 use crate::model::user::User;
-use crate::{
-    crud::PgDb,
-    error::MeshError,
-    model::query::{Query},
-};
+use crate::{crud::PgDb, error::MeshError, model::query::Query};
 
 use datafusion::sql::sqlparser::ast::Statement;
-use datafusion::sql::sqlparser::ast::{visit_relations, TableFactor, VisitMut, VisitorMut};
+use datafusion::sql::sqlparser::ast::{TableFactor, VisitMut, VisitorMut};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -81,7 +76,10 @@ pub async fn request_to_local_queries(
     for ((_, source), mappings) in sources {
         let mut info_map_lookup = HashMap::with_capacity(mappings.len());
         for (_, info, field, map) in mappings.iter() {
-            if let Some(_) = info_map_lookup.insert(info.name.as_str(), (field, map)) {
+            if info_map_lookup
+                .insert(info.name.as_str(), (field, map))
+                .is_some()
+            {
                 return Err(MeshError::InvalidQuery(format!(
                     "Found duplicate mapping for {} and source {}",
                     info.name, source.id
@@ -92,7 +90,7 @@ pub async fn request_to_local_queries(
             evaluate_permission_policies(db, direct_requester, requesting_user, &source).await?;
         let source_mapped_sql = map_sql(
             query.to_owned(),
-            &entity_name,
+            entity_name,
             &source,
             &info_map_lookup,
             permission,
@@ -194,7 +192,7 @@ pub async fn request_to_remote_requests(
 
         let mut info_map_lookup = HashMap::with_capacity(mappings.len());
         for (_, info, _, map) in mappings.iter() {
-            if let Some(_) = info_map_lookup.insert(info.name.as_str(), map) {
+            if info_map_lookup.insert(info.name.as_str(), map).is_some() {
                 return Err(MeshError::InvalidQuery(format!(
                     "Found duplicate mapping for info {}",
                     info.name

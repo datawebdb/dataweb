@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::{mappings::Transformation};
+use crate::model::mappings::Transformation;
 
 use super::{default_false, no_entitymap, no_transformation};
 

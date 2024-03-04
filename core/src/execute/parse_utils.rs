@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use datafusion::sql::sqlparser::{
     ast::{
@@ -9,10 +9,7 @@ use datafusion::sql::sqlparser::{
     parser::Parser,
 };
 
-use crate::{
-    error::{MeshError, Result},
-    model::access_control::SourcePermission,
-};
+use crate::error::{MeshError, Result};
 
 use super::visit_table_factor_mut;
 
@@ -127,13 +124,13 @@ fn maybe_extract_info<'a>(expr: &'a Expr, entity_name: &'a str) -> Option<&'a St
                     if ent.value == entity_name {
                         Some(&info.value)
                     } else {
-                        return None;
+                        None
                     }
                 }
-                _ => return None,
+                _ => None,
             }
         }
-        _ => return None,
+        _ => None,
     }
 }
 
@@ -159,7 +156,7 @@ pub(crate) fn apply_col_iden_mapping(
             }
         };
 
-        match parse_sql_as_expr(&transformed_info_sql) {
+        match parse_sql_as_expr(transformed_info_sql) {
             Ok(transformed_expr) => *expr = transformed_expr,
             Err(e) => return std::ops::ControlFlow::Break(Err(e)),
         };

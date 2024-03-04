@@ -3,7 +3,7 @@ use crate::model::{
     data_stores::{DataConnection, DataSource},
     query::{
         FlightStream, NewFlightStream, NewQueryTask, QueryOriginationInfo, QueryRequest, QueryTask,
-        QueryTaskRemote, QueryTaskRemoteStatus, QueryTaskStatus, 
+        QueryTaskRemote, QueryTaskRemoteStatus, QueryTaskStatus,
     },
     relay::Relay,
 };

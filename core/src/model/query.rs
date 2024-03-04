@@ -1,4 +1,4 @@
-use super::{data_stores::DataSource, mappings::Transformation, relay::Relay, user::User};
+use super::{data_stores::DataSource, relay::Relay, user::User};
 use crate::schema::{incoming_flight_streams, query_request, query_task, query_task_remote};
 
 use arrow_schema::Schema;
@@ -6,7 +6,7 @@ use diesel::prelude::*;
 use diesel::{AsExpression, FromSqlRow};
 use diesel_as_jsonb::AsJsonb;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, AsJsonb, PartialEq)]

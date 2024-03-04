@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use datafusion::sql::sqlparser::ast::{
-    visit_expressions_mut, Expr, Statement, TableFactor, TableWithJoins,
-};
+use datafusion::sql::sqlparser::ast::{Statement, TableFactor, TableWithJoins};
 
 use crate::error::Result;
 
@@ -11,17 +9,15 @@ use crate::model::access_control::SourcePermission;
 use crate::{
     error::MeshError,
     model::{
-        data_stores::{DataConnection, DataField, DataSource},
-        entity::{Entity, Information},
+        data_stores::{DataField, DataSource},
         mappings::Mapping,
     },
 };
 
 use super::parse_utils::{
-    apply_col_iden_mapping, iden_str_to_select_item, null_lit_expr, parse_sql_as_expr,
-    parse_sql_as_table_factor, projected_filtered_query, substitute_table_factor,
+    apply_col_iden_mapping, iden_str_to_select_item, parse_sql_as_expr, parse_sql_as_table_factor,
+    projected_filtered_query, substitute_table_factor,
 };
-use super::visit_table_factor_mut;
 
 /// Substitutes appropriate table names and fields for a specific source
 /// into an ast
@@ -33,7 +29,7 @@ pub(crate) fn map_sql(
     permission: SourcePermission,
 ) -> Result<Statement> {
     apply_source_substitutions(&mut statement, source, &permission)?;
-    apply_info_substitutions(&mut statement, &info_map_lookup, &permission, entity_name)?;
+    apply_info_substitutions(&mut statement, info_map_lookup, &permission, entity_name)?;
 
     Ok(statement)
 }
@@ -105,7 +101,7 @@ fn apply_info_substitutions(
         .iter()
         .filter_map(|(info, (df, map))| {
             let col = &df.path;
-            if let Some(_) = allowed_cols.get(col) {
+            if allowed_cols.get(col).is_some() {
                 let transform = &map.transformation;
                 Some((
                     *info,

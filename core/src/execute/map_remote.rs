@@ -1,20 +1,10 @@
 use std::collections::HashMap;
 
 use crate::error::Result;
-use crate::model::data_stores::DataField;
-use crate::model::entity::{Entity, Information};
+
 use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping};
 
-use crate::model::relay::Relay;
-use crate::model::user::User;
-use crate::{
-    error::MeshError,
-};
-
 use datafusion::sql::sqlparser::ast::Statement;
-use itertools::Itertools;
-use tracing::debug;
-use uuid::Uuid;
 
 use super::parse_utils::{
     apply_col_iden_mapping, parse_sql_as_table_factor, substitute_table_factor,
@@ -32,7 +22,7 @@ pub(crate) fn map_remote_request(
 ) -> Result<Statement> {
     apply_source_substitutions(&mut statement, entity_map)?;
 
-    apply_info_substitutions(&mut statement, &info_map_lookup, entity_name)?;
+    apply_info_substitutions(&mut statement, info_map_lookup, entity_name)?;
 
     Ok(statement)
 }
@@ -73,26 +63,23 @@ fn apply_info_substitutions(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use crate::execute::planning::EntityContext;
-    use crate::model::access_control::{ColumnPermission, RowPermission, SourcePermission};
-    use crate::model::data_stores::options::SourceOptions;
-    use crate::model::data_stores::DataField;
-    use crate::model::mappings::{Mapping, RemoteEntityMapping, RemoteInfoMapping, Transformation};
+
+    use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping, Transformation};
     use arrow_schema::{DataType, Field, Schema};
     use datafusion::sql::planner::SqlToRel;
     use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
     use datafusion_federation_sql::query_to_sql;
     use uuid::Uuid;
 
-    use crate::{
-        error::{MeshError, Result},
-        model::data_stores::{options::trino::TrinoSource, DataSource},
-    };
+    use crate::error::{MeshError, Result};
 
     use super::{apply_info_substitutions, apply_source_substitutions};
+
+    #[test]
     fn test_source_substitution() -> Result<()> {
         let sql = "select foo, bar from (select * from entityname);";
         let dialect = AnsiDialect {};
@@ -116,7 +103,7 @@ mod tests {
 
         apply_source_substitutions(
             &mut statement,
-            &RemoteEntityMapping{
+            &RemoteEntityMapping {
                 id: Uuid::new_v4(),
                 sql: "select * from test".to_string(),
                 relay_id: Uuid::new_v4(),
@@ -127,12 +114,9 @@ mod tests {
 
         println!("Post sub statement {statement}");
 
-        assert!(
-            (statement.to_string() ==
-            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
-            ||
-            (statement.to_string() ==
-            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
+        assert_eq!(
+            statement.to_string(),
+            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT * FROM test)".to_string()
         );
 
         Ok(())
@@ -148,7 +132,7 @@ mod tests {
 
         let mut statement = ast.remove(0);
 
-        let remote_foo_map = RemoteInfoMapping{
+        let remote_foo_map = RemoteInfoMapping {
             remote_entity_mapping_id: Uuid::new_v4(),
             information_id: Uuid::new_v4(),
             info_mapped_name: "remote_info".to_string(),
@@ -160,11 +144,7 @@ mod tests {
 
         let info_map_lookup = HashMap::from_iter(vec![("foo", &remote_foo_map)]);
 
-        apply_info_substitutions(
-            &mut statement,
-            &info_map_lookup,
-            "entityname",
-        )?;
+        apply_info_substitutions(&mut statement, &info_map_lookup, "entityname")?;
 
         println!("Post sub statement {statement}");
 

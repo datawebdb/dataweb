@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use arrow::datatypes::SchemaRef;
 
 use chrono::{NaiveDate, NaiveDateTime};
@@ -7,21 +5,16 @@ use datafusion::{
     common::{not_impl_err, Result},
     logical_expr::Expr,
     scalar::ScalarValue,
+    sql::sqlparser::ast::Ident,
 };
 
 use datafusion::common::DataFusionError;
 use tracing::info;
 
-use crate::web_source::InfoSubstitution;
-
-pub fn map_filter_exprs(
-    entity_name: &str,
-    filters: &[Expr],
-    info_subs: &mut HashMap<String, InfoSubstitution>,
-) -> String {
+pub fn map_filter_exprs(entity_name: &str, filters: &[Expr]) -> String {
     let sql_exprs = filters
         .iter()
-        .filter_map(|f| match filter_expr_to_sql(entity_name, f, info_subs) {
+        .filter_map(|f| match filter_expr_to_sql(entity_name, f) {
             Ok(s) => Some(s),
             Err(e) => {
                 info!("Failed to push down filter expr {f} with error {e}");
@@ -36,65 +29,54 @@ pub fn map_filter_exprs(
     }
 }
 
-pub fn filter_expr_to_sql(
-    entity_name: &str,
-    filter: &Expr,
-    info_subs: &mut HashMap<String, InfoSubstitution>,
-) -> Result<String> {
+pub fn filter_expr_to_sql(entity_name: &str, filter: &Expr) -> Result<String> {
     match filter {
         Expr::Alias(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::Column(col) => {
-            let key = format!("filter_{}", col.name);
-            info_subs.insert(
-                key.clone(),
-                InfoSubstitution {
-                    entity_name: entity_name.to_string(),
-                    info_name: col.name.to_string(),
-                    include_info: true,
-                    exclude_info_alias: true,
-                    include_data_field: false,
-                },
-            );
-            Ok(format!("{{{}}}", key))
+            let expr = datafusion::sql::sqlparser::ast::Expr::CompoundIdentifier(vec![
+                Ident::new(entity_name),
+                Ident::new(&col.name),
+            ]);
+            Ok(format!("{}", expr))
         }
         Expr::ScalarVariable(_, _) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::Literal(lit) => scalar_value_to_sql(lit),
         Expr::BinaryExpr(expr) => Ok(format!(
             "({} {} {})",
-            filter_expr_to_sql(entity_name, expr.left.as_ref(), info_subs)?,
+            filter_expr_to_sql(entity_name, expr.left.as_ref())?,
             expr.op,
-            filter_expr_to_sql(entity_name, expr.right.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.right.as_ref())?
         )),
         Expr::Like(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::SimilarTo(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::Not(expr) => Ok(format!(
             "(NOT {})",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsNotNull(expr) => Ok(format!(
             "({} IS NOT NULL)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsNull(expr) => Ok(format!(
             "({} IS NULL)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsTrue(expr) => Ok(format!(
             "({} IS TRUE)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsFalse(expr) => Ok(format!(
             "({} IS FALSE)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsUnknown(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::IsNotTrue(expr) => Ok(format!(
             "({} IS NOT TRUE)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsNotFalse(expr) => Ok(format!(
             "({} IS NOT FALSE)",
-            filter_expr_to_sql(entity_name, expr.as_ref(), info_subs)?
+            filter_expr_to_sql(entity_name, expr.as_ref())?
         )),
         Expr::IsNotUnknown(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
         Expr::Negative(_) => not_impl_err!("Got unsupported filter Expr {filter}"),
@@ -210,28 +192,17 @@ fn scalar_value_to_sql(val: &ScalarValue) -> Result<String> {
 
 /// Computes the appropriate projection string for a given projected [SchemaRef] and inserts
 /// the appropraite [InfoSubstitution] for the returned string
-pub fn map_projection(
-    entity_name: &str,
-    projected_schema: SchemaRef,
-    info_subs: &mut HashMap<String, InfoSubstitution>,
-) -> String {
+pub fn map_projection(entity_name: &str, projected_schema: SchemaRef) -> String {
     projected_schema
         .fields()
         .iter()
         .map(|f| {
-            let key = format!("proj_{}", f.name());
-            info_subs.insert(
-                key.clone(),
-                InfoSubstitution {
-                    entity_name: entity_name.to_string(),
-                    info_name: f.name().to_string(),
-                    include_info: true,
-                    exclude_info_alias: false,
-                    include_data_field: false,
-                },
-            );
-            format!("{{{}}}", key)
+            let expr = datafusion::sql::sqlparser::ast::Expr::CompoundIdentifier(vec![
+                Ident::new(entity_name),
+                Ident::new(f.name()),
+            ]);
+            format!("{expr}")
         })
         .collect::<Vec<_>>()
-        .join(",")
+        .join(", ")
 }

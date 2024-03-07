@@ -659,8 +659,8 @@ mod tests {
             .to_string();
 
         assert_eq!(
-            "invalid query: SQL query template string exceeds maximum length of \
-        1,000,000 characters! Either simplify query or break into multiple parts.",
+            "invalid query: SQL string exceeds maximum length of \
+        1000000 characters! Either simplify query or break into multiple parts.",
             err_msg
         );
         Ok(())

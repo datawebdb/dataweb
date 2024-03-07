@@ -1,8 +1,4 @@
-use crate::crud::PgDb;
 use crate::error::Result;
-
-use crate::execute::utils::information_to_schema;
-use crate::model::query::RawQueryRequest;
 
 use crate::error::MeshError;
 
@@ -25,8 +21,7 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
         return Err(MeshError::InvalidQuery(format!(
             "SQL string exceeds maximum length of {MAX_QUERY_LENGTH} characters! \
             Either simplify query or break into multiple parts."
-        ),
-        ));
+        )));
     }
 
     let dialect = AnsiDialect {};
@@ -54,14 +49,13 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
     }
 
     let entity = get_entity_for_statement(&statement)?;
-    
 
     Ok((entity, statement))
 }
 
 /// Uses datafusion to logically plan the [Statement], ultimately converting back to
 /// a [Statement] which has alias names resolved, columns fully qualified, ect.
-pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<Statement>{
+pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<Statement> {
     let sql_to_rel = SqlToRel::new(&context);
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
     Ok(query_to_sql(&logical_plan)?)
@@ -385,10 +379,7 @@ fn validate_expr(expr: &Expr) -> Result<()> {
     Ok(())
 }
 
-fn validate_window_frame_bound(
-    bound: &WindowFrameBound,
-    
-) -> Result<()> {
+fn validate_window_frame_bound(bound: &WindowFrameBound) -> Result<()> {
     match &bound {
         WindowFrameBound::Preceding(Some(expr)) => validate_expr(expr)?,
         WindowFrameBound::Following(Some(expr)) => validate_expr(expr)?,
@@ -567,10 +558,7 @@ fn validate_query_body(body: &SetExpr) -> Result<()> {
 
 /// Processes a single Statement::Query recursively, returning an Err if
 /// any constraint is violated. Called via [logical_round_trip].
-fn validate_query_statement(
-    query: &datafusion::sql::sqlparser::ast::Query,
-    
-) -> Result<()> {
+fn validate_query_statement(query: &datafusion::sql::sqlparser::ast::Query) -> Result<()> {
     if let Some(with) = &query.with {
         for cte in with.cte_tables.iter() {
             validate_query_statement(&cte.query)?;
@@ -588,8 +576,6 @@ mod tests {
     use crate::error::Result;
     use crate::execute::validation::validate_sql;
     use crate::model::query::RawQueryRequest;
-
-    use super::logical_round_trip;
 
     #[test]
     fn insert_into_test() -> Result<()> {

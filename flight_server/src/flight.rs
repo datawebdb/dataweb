@@ -22,9 +22,10 @@ use mesh::execute::result_manager::ResultManager;
 
 use mesh::execute::request_to_remote_requests;
 use mesh::execute::utils::{
-    create_query_request, map_and_create_local_tasks, validate_sql_and_logical_round_trip, verify_query_origination_information
+    create_query_request, map_and_create_local_tasks, validate_sql_and_logical_round_trip,
+    verify_query_origination_information,
 };
-use mesh::execute::validation::{logical_round_trip, validate_sql};
+
 use mesh::model::data_stores::{DataConnection, DataSource};
 use mesh::model::query::{
     FlightStreamStatus, NewFlightStream, QueryRequest, QueryTask, RawQueryRequest,
@@ -553,9 +554,11 @@ impl FlightService for FlightRelay {
         }
 
         debug!("Checking if sql is allowed and logically valid...");
-        let (entity_name, statement) = validate_sql_and_logical_round_trip(&query.sql, &mut db).await.map_err(|e| {
-            Status::invalid_argument(format!("Query validation failed with error {e}"))
-        })?;
+        let (entity_name, statement) = validate_sql_and_logical_round_trip(&query.sql, &mut db)
+            .await
+            .map_err(|e| {
+                Status::invalid_argument(format!("Query validation failed with error {e}"))
+            })?;
 
         debug!("Post round trip sql: {statement}");
 

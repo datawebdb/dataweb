@@ -133,9 +133,9 @@ mod tests {
     use crate::model::data_stores::DataField;
     use crate::model::mappings::{Mapping, Transformation};
     use arrow_schema::{DataType, Field, Schema};
-    use datafusion::sql::planner::SqlToRel;
+
     use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
-    use datafusion_federation_sql::query_to_sql;
+
     use uuid::Uuid;
 
     use crate::{

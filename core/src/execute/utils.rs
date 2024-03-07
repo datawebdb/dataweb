@@ -21,7 +21,10 @@ use super::planning::EntityContext;
 use super::validation::{logical_round_trip, validate_sql};
 use super::Requester;
 
-pub async fn validate_sql_and_logical_round_trip(sql: &str, db: &mut PgDb<'_>) -> Result<(String, Statement)>{
+pub async fn validate_sql_and_logical_round_trip(
+    sql: &str,
+    db: &mut PgDb<'_>,
+) -> Result<(String, Statement)> {
     let (entity_name, statement) = validate_sql(sql)?;
 
     let context = create_planning_context(&entity_name, db).await?;
@@ -29,7 +32,10 @@ pub async fn validate_sql_and_logical_round_trip(sql: &str, db: &mut PgDb<'_>) -
     Ok((entity_name, statement))
 }
 
-pub async fn create_planning_context(entity_name: &str, db: &mut PgDb<'_>) -> Result<EntityContext>{
+pub async fn create_planning_context(
+    entity_name: &str,
+    db: &mut PgDb<'_>,
+) -> Result<EntityContext> {
     let entity = db.get_entity(entity_name).await?;
     let information = db.get_information_for_entity(entity.id).await?;
     let schema = information_to_schema(information);
@@ -38,11 +44,11 @@ pub async fn create_planning_context(entity_name: &str, db: &mut PgDb<'_>) -> Re
 }
 
 /// Converts a Vec of [Information] to an arrow [SchemaRef]
-pub fn information_to_schema(information: Vec<Information>) -> SchemaRef{
+pub fn information_to_schema(information: Vec<Information>) -> SchemaRef {
     let mut schema_builder = SchemaBuilder::new();
-        for info in information {
-            schema_builder.push(Field::new(info.name, info.arrow_dtype.inner, true));
-        }
+    for info in information {
+        schema_builder.push(Field::new(info.name, info.arrow_dtype.inner, true));
+    }
     Arc::new(schema_builder.finish())
 }
 

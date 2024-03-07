@@ -71,7 +71,7 @@ mod tests {
     use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping, Transformation};
     use arrow_schema::{DataType, Field, Schema};
     use datafusion::sql::planner::SqlToRel;
-    use datafusion::sql::sqlparser::{dialect::AnsiDialect, parser::Parser};
+    use datafusion::sql::sqlparser::{dialect::GenericDialect, parser::Parser};
     use datafusion_federation_sql::query_to_sql;
     use uuid::Uuid;
 
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_source_substitution() -> Result<()> {
         let sql = "select foo, bar from (select * from entityname);";
-        let dialect = AnsiDialect {};
+        let dialect = GenericDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_info_substitution() -> Result<()> {
         let sql = "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
-        let dialect = AnsiDialect {};
+        let dialect = GenericDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;

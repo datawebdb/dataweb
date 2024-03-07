@@ -7,7 +7,7 @@ use datafusion::sql::sqlparser::ast::{
     visit_relations, Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow,
     Select, SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
 };
-use datafusion::sql::sqlparser::dialect::AnsiDialect;
+use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 use datafusion_federation_sql::query_to_sql;
 
@@ -24,7 +24,7 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
         )));
     }
 
-    let dialect = AnsiDialect {};
+    let dialect = GenericDialect {};
 
     let mut ast = Parser::parse_sql(&dialect, sql)
         .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;

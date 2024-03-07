@@ -5,7 +5,7 @@ use datafusion::sql::sqlparser::{
         visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr,
         Statement, TableFactor, TableWithJoins,
     },
-    dialect::AnsiDialect,
+    dialect::GenericDialect,
     parser::Parser,
 };
 
@@ -13,7 +13,7 @@ use crate::error::{MeshError, Result};
 
 use super::visit_table_factor_mut;
 
-static DIALECT: AnsiDialect = AnsiDialect {};
+static DIALECT: GenericDialect = GenericDialect {};
 
 pub(crate) fn parse_sql_as_expr(sql: &str) -> Result<Expr> {
     let mut parser = Parser::new(&DIALECT).try_with_sql(sql)?;

@@ -143,10 +143,11 @@ pub enum QueryTaskStatus {
 #[diesel(table_name = query_task_remote)]
 /// A QueryTaskRemote is created when the local [Relay] propagates a [RawQueryRequest] to
 /// a peered [Relay]. The peered Relay may in turn propagate the request to an aribtrary
-/// number of additional Relays many hops away from the local relay. Each remote task
-/// will execute a do_put call to the local relay containing the QueryTaskRemote id.
-/// The local relay will tie the QueryTaskRemote to an arbitrary number of [FlightStream]s,
-/// one for each do_put call it received.
+/// number of additional Relays many hops away from the local relay. 
+/// 
+/// In async execution mode, each remote task will execute a do_put call to the local relay 
+/// containing the QueryTaskRemote id. The local relay will tie the QueryTaskRemote to
+/// an arbitrary number of [FlightStream]s, one for each do_put call it received.
 pub struct QueryTaskRemote {
     pub id: Uuid,
     pub query_request_id: Uuid,

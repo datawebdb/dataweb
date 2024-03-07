@@ -81,8 +81,8 @@ pub async fn request_to_local_queries(
                 .is_some()
             {
                 return Err(MeshError::InvalidQuery(format!(
-                    "Found duplicate mapping for {} and source {}",
-                    info.name, source.id
+                    "Found duplicate mapping for info {} and source {}",
+                    info.name, source.name
                 )));
             }
         }

@@ -68,8 +68,7 @@ CREATE TABLE query_request (
     originator_request_id uuid NOT NULL UNIQUE,
     sql VARCHAR NOT NULL,
     relay_id uuid NOT NULL REFERENCES relays(id),
-    origin_info jsonb NOT NULL,
-    substitution_blocks jsonb NOT NULL
+    origin_info jsonb NOT NULL
 );
 
 CREATE TYPE query_task_status AS ENUM ('queued', 'in_progress', 'complete', 'failed');

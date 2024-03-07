@@ -10,7 +10,7 @@ use datafusion::{
 };
 
 /// DataFusion logical planning ContextProvider for a single Entity.
-pub(crate) struct EntityContext {
+pub struct EntityContext {
     entity: String,
     schema: SchemaRef,
     options: ConfigOptions,

@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+
+use arrow_schema::{Field, Schema, SchemaBuilder, SchemaRef};
 
 use crate::model::entity::Entity;
 use crate::model::{

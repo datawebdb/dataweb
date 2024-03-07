@@ -1,28 +1,31 @@
+use crate::crud::PgDb;
 use crate::error::Result;
 
+use crate::execute::utils::information_to_schema;
 use crate::model::query::RawQueryRequest;
 
 use crate::error::MeshError;
 
+use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{
     visit_relations, Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow,
     Select, SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
 };
 use datafusion::sql::sqlparser::dialect::AnsiDialect;
 use datafusion::sql::sqlparser::parser::Parser;
+use datafusion_federation_sql::query_to_sql;
 
-/// Uses sqlparser-rs to impose constraints on the provided sql template.
-/// For example, specifying a raw table name instead of using a
-/// [SourceSubstitution][crate::model::query::SourceSubstitution] is disallowed as this would enable crafting
-/// queries to bypass access controls.
-pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<(String, Statement)> {
-    let sql = &raw_request.sql;
+use super::planning::EntityContext;
 
-    if sql.len() > 1_000_000 {
-        return Err(MeshError::InvalidQuery(
-            "SQL query template string exceeds maximum length of 1,000,000 characters! \
+static MAX_QUERY_LENGTH: usize = 1_000_000;
+
+/// Uses sqlparser-rs to impose constraints on the provided sql.
+pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
+    if sql.len() > MAX_QUERY_LENGTH {
+        return Err(MeshError::InvalidQuery(format!(
+            "SQL string exceeds maximum length of {MAX_QUERY_LENGTH} characters! \
             Either simplify query or break into multiple parts."
-                .into(),
+        ),
         ));
     }
 
@@ -41,7 +44,7 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<(String, S
     let statement = ast.remove(0);
 
     match &statement {
-        Statement::Query(q) => validate_query_statement(q, raw_request)?,
+        Statement::Query(q) => validate_query_statement(q)?,
         _ => {
             return Err(MeshError::InvalidQuery(format!(
                 "SQL templates may only contain read-only \
@@ -51,8 +54,17 @@ pub fn validate_sql_template(raw_request: &RawQueryRequest) -> Result<(String, S
     }
 
     let entity = get_entity_for_statement(&statement)?;
+    
 
     Ok((entity, statement))
+}
+
+/// Uses datafusion to logically plan the [Statement], ultimately converting back to
+/// a [Statement] which has alias names resolved, columns fully qualified, ect.
+pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<Statement>{
+    let sql_to_rel = SqlToRel::new(&context);
+    let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
+    Ok(query_to_sql(&logical_plan)?)
 }
 
 /// Each [Statement] should only reference a single [Entity]. Verifies this is the case
@@ -76,93 +88,93 @@ fn get_entity_for_statement(statement: &Statement) -> Result<String> {
     Ok(entities.remove(0))
 }
 
-fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
+fn validate_expr(expr: &Expr) -> Result<()> {
     match expr {
         Expr::Identifier(_) => (),
         Expr::CompoundIdentifier(_) => (),
         Expr::JsonAccess { left, right, .. } => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
         Expr::CompositeAccess { .. } => {
             return Err(MeshError::InvalidQuery(
                 "Composite access query expressions are not allowed".into(),
             ))
         }
-        Expr::IsFalse(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotFalse(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotTrue(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsTrue(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotNull(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNull(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsUnknown(inner) => validate_expr(inner.as_ref(), raw_request)?,
-        Expr::IsNotUnknown(inner) => validate_expr(inner.as_ref(), raw_request)?,
+        Expr::IsFalse(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsNotFalse(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsNotTrue(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsTrue(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsNotNull(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsNull(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsUnknown(inner) => validate_expr(inner.as_ref())?,
+        Expr::IsNotUnknown(inner) => validate_expr(inner.as_ref())?,
         Expr::IsDistinctFrom(left, right) => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
         Expr::IsNotDistinctFrom(left, right) => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
         Expr::InList { expr, list, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
             for list_inner in list.iter() {
-                validate_expr(list_inner, raw_request)?;
+                validate_expr(list_inner)?;
             }
         }
         Expr::InSubquery { expr, subquery, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_query_statement(subquery.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_query_statement(subquery.as_ref())?;
         }
         Expr::InUnnest {
             expr, array_expr, ..
         } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(array_expr.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(array_expr.as_ref())?;
         }
         Expr::Between {
             expr, low, high, ..
         } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(low.as_ref(), raw_request)?;
-            validate_expr(high.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(low.as_ref())?;
+            validate_expr(high.as_ref())?;
         }
         Expr::BinaryOp { left, right, .. } => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
         Expr::Like { expr, pattern, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(pattern.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(pattern.as_ref())?;
         }
         Expr::ILike { expr, pattern, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(pattern.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(pattern.as_ref())?;
         }
         Expr::SimilarTo { expr, pattern, .. } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(pattern.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(pattern.as_ref())?;
         }
         Expr::AnyOp { left, right, .. } => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
         Expr::AllOp { left, right, .. } => {
-            validate_expr(left.as_ref(), raw_request)?;
-            validate_expr(right.as_ref(), raw_request)?;
+            validate_expr(left.as_ref())?;
+            validate_expr(right.as_ref())?;
         }
-        Expr::UnaryOp { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::Cast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::TryCast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::SafeCast { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::AtTimeZone { timestamp, .. } => validate_expr(timestamp.as_ref(), raw_request)?,
-        Expr::Extract { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::Ceil { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
-        Expr::Floor { expr, .. } => validate_expr(expr.as_ref(), raw_request)?,
+        Expr::UnaryOp { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::Cast { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::TryCast { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::SafeCast { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::AtTimeZone { timestamp, .. } => validate_expr(timestamp.as_ref())?,
+        Expr::Extract { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::Ceil { expr, .. } => validate_expr(expr.as_ref())?,
+        Expr::Floor { expr, .. } => validate_expr(expr.as_ref())?,
         Expr::Position { expr, r#in } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(r#in.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(r#in.as_ref())?;
         }
         Expr::Substring {
             expr,
@@ -170,12 +182,12 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
             substring_for,
             ..
         } => {
-            validate_expr(expr.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
             if let Some(from_expr) = substring_from {
-                validate_expr(from_expr.as_ref(), raw_request)?;
+                validate_expr(from_expr.as_ref())?;
             }
             if let Some(for_expr) = substring_for {
-                validate_expr(for_expr.as_ref(), raw_request)?;
+                validate_expr(for_expr.as_ref())?;
             }
         }
         Expr::Trim {
@@ -184,9 +196,9 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
             trim_where: _,
             ..
         } => {
-            validate_expr(expr.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
             if let Some(what_expr) = trim_what {
-                validate_expr(what_expr.as_ref(), raw_request)?;
+                validate_expr(what_expr.as_ref())?;
             }
         }
         Expr::Overlay {
@@ -195,11 +207,11 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
             overlay_from,
             overlay_for,
         } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(overlay_what.as_ref(), raw_request)?;
-            validate_expr(overlay_from.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(overlay_what.as_ref())?;
+            validate_expr(overlay_from.as_ref())?;
             if let Some(for_expr) = overlay_for {
-                validate_expr(for_expr.as_ref(), raw_request)?;
+                validate_expr(for_expr.as_ref())?;
             }
         }
         Expr::Collate { .. } => {
@@ -207,7 +219,7 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
                 "collation expressions are not allowed".to_string(),
             ))
         }
-        Expr::Nested(inner) => validate_expr(inner.as_ref(), raw_request)?,
+        Expr::Nested(inner) => validate_expr(inner.as_ref())?,
         Expr::Value(_) => (),
         Expr::IntroducedString { .. } => {
             return Err(MeshError::InvalidQuery(
@@ -216,21 +228,21 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
         }
         Expr::TypedString { .. } => (),
         Expr::MapAccess { column, keys } => {
-            validate_expr(column.as_ref(), raw_request)?;
+            validate_expr(column.as_ref())?;
             for key_expr in keys.iter() {
-                validate_expr(key_expr, raw_request)?;
+                validate_expr(key_expr)?;
             }
         }
         Expr::Function(fun) => {
             for arg in fun.args.iter() {
                 match arg {
                     FunctionArg::Named { arg, .. } => match arg {
-                        FunctionArgExpr::Expr(expr) => validate_expr(expr, raw_request)?,
+                        FunctionArgExpr::Expr(expr) => validate_expr(expr)?,
                         FunctionArgExpr::Wildcard => (),
                         FunctionArgExpr::QualifiedWildcard(_) => (),
                     },
                     FunctionArg::Unnamed(arg) => match arg {
-                        FunctionArgExpr::Expr(expr) => validate_expr(expr, raw_request)?,
+                        FunctionArgExpr::Expr(expr) => validate_expr(expr)?,
                         FunctionArgExpr::Wildcard => (),
                         FunctionArgExpr::QualifiedWildcard(_) => (),
                     },
@@ -239,18 +251,18 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
 
             if let Some(window) = &fun.over {
                 match &window {
-                    WindowType::WindowSpec(spec) => validate_window_spec(spec, raw_request)?,
+                    WindowType::WindowSpec(spec) => validate_window_spec(spec)?,
                     WindowType::NamedWindow(_) => (),
                 }
             }
 
             for order_by in fun.order_by.iter() {
-                validate_expr(&order_by.expr, raw_request)?;
+                validate_expr(&order_by.expr)?;
             }
         }
         Expr::AggregateExpressionWithFilter { expr, filter } => {
-            validate_expr(expr.as_ref(), raw_request)?;
-            validate_expr(filter.as_ref(), raw_request)?;
+            validate_expr(expr.as_ref())?;
+            validate_expr(filter.as_ref())?;
         }
         Expr::Case {
             operand,
@@ -259,93 +271,93 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
             else_result,
         } => {
             if let Some(expr) = operand {
-                validate_expr(expr.as_ref(), raw_request)?;
+                validate_expr(expr.as_ref())?;
             }
 
             for expr in conditions.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
 
             for expr in results.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
 
             if let Some(expr) = else_result {
-                validate_expr(expr.as_ref(), raw_request)?;
+                validate_expr(expr.as_ref())?;
             }
         }
-        Expr::Exists { subquery, .. } => validate_query_statement(subquery.as_ref(), raw_request)?,
-        Expr::Subquery(subquery) => validate_query_statement(subquery.as_ref(), raw_request)?,
-        Expr::ArraySubquery(subquery) => validate_query_statement(subquery.as_ref(), raw_request)?,
+        Expr::Exists { subquery, .. } => validate_query_statement(subquery.as_ref())?,
+        Expr::Subquery(subquery) => validate_query_statement(subquery.as_ref())?,
+        Expr::ArraySubquery(subquery) => validate_query_statement(subquery.as_ref())?,
         Expr::ListAgg(listagg) => {
-            validate_expr(&listagg.expr, raw_request)?;
+            validate_expr(&listagg.expr)?;
             if let Some(expr) = &listagg.separator {
-                validate_expr(expr.as_ref(), raw_request)?;
+                validate_expr(expr.as_ref())?;
             }
             for orderby in &listagg.within_group {
-                validate_expr(&orderby.expr, raw_request)?;
+                validate_expr(&orderby.expr)?;
             }
             if let Some(overflow) = &listagg.on_overflow {
                 match &overflow {
                     ListAggOnOverflow::Error => (),
                     ListAggOnOverflow::Truncate { filler, .. } => {
                         if let Some(expr) = filler {
-                            validate_expr(expr, raw_request)?;
+                            validate_expr(expr)?;
                         }
                     }
                 }
             }
         }
         Expr::ArrayAgg(arrayagg) => {
-            validate_expr(&arrayagg.expr, raw_request)?;
+            validate_expr(&arrayagg.expr)?;
             if let Some(orderbys) = &arrayagg.order_by {
                 for orderby in orderbys.iter() {
-                    validate_expr(&orderby.expr, raw_request)?;
+                    validate_expr(&orderby.expr)?;
                 }
             }
             if let Some(expr) = &arrayagg.limit {
-                validate_expr(expr.as_ref(), raw_request)?;
+                validate_expr(expr.as_ref())?;
             }
         }
         Expr::GroupingSets(exprs) => {
             for exprs in exprs.iter() {
                 for expr in exprs.iter() {
-                    validate_expr(expr, raw_request)?;
+                    validate_expr(expr)?;
                 }
             }
         }
         Expr::Cube(exprs) => {
             for exprs in exprs.iter() {
                 for expr in exprs.iter() {
-                    validate_expr(expr, raw_request)?;
+                    validate_expr(expr)?;
                 }
             }
         }
         Expr::Rollup(exprs) => {
             for exprs in exprs.iter() {
                 for expr in exprs.iter() {
-                    validate_expr(expr, raw_request)?;
+                    validate_expr(expr)?;
                 }
             }
         }
         Expr::Tuple(exprs) => {
             for expr in exprs.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
         }
         Expr::ArrayIndex { obj, indexes } => {
-            validate_expr(obj.as_ref(), raw_request)?;
+            validate_expr(obj.as_ref())?;
             for expr in indexes.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
         }
         Expr::Array(arr) => {
             for expr in arr.elem.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
         }
         Expr::Interval(interval) => {
-            validate_expr(interval.value.as_ref(), raw_request)?;
+            validate_expr(interval.value.as_ref())?;
         }
         Expr::MatchAgainst { .. } => {
             return Err(MeshError::InvalidQuery(
@@ -375,11 +387,11 @@ fn validate_expr(expr: &Expr, raw_request: &RawQueryRequest) -> Result<()> {
 
 fn validate_window_frame_bound(
     bound: &WindowFrameBound,
-    raw_request: &RawQueryRequest,
+    
 ) -> Result<()> {
     match &bound {
-        WindowFrameBound::Preceding(Some(expr)) => validate_expr(expr, raw_request)?,
-        WindowFrameBound::Following(Some(expr)) => validate_expr(expr, raw_request)?,
+        WindowFrameBound::Preceding(Some(expr)) => validate_expr(expr)?,
+        WindowFrameBound::Following(Some(expr)) => validate_expr(expr)?,
         WindowFrameBound::CurrentRow
         | WindowFrameBound::Preceding(None)
         | WindowFrameBound::Following(None) => (),
@@ -388,32 +400,32 @@ fn validate_window_frame_bound(
     Ok(())
 }
 
-fn validate_window_spec(spec: &WindowSpec, raw_request: &RawQueryRequest) -> Result<()> {
+fn validate_window_spec(spec: &WindowSpec) -> Result<()> {
     for expr in spec.partition_by.iter() {
-        validate_expr(expr, raw_request)?;
+        validate_expr(expr)?;
     }
 
     for orderby in spec.order_by.iter() {
-        validate_expr(&orderby.expr, raw_request)?;
+        validate_expr(&orderby.expr)?;
     }
 
     if let Some(frame) = &spec.window_frame {
-        validate_window_frame_bound(&frame.start_bound, raw_request)?;
+        validate_window_frame_bound(&frame.start_bound)?;
         if let Some(end_bound) = &frame.end_bound {
-            validate_window_frame_bound(end_bound, raw_request)?;
+            validate_window_frame_bound(end_bound)?;
         }
     }
 
     Ok(())
 }
 
-fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Result<()> {
+fn validate_select_setexpr(select: &Select) -> Result<()> {
     if let Some(distinct) = &select.distinct {
         match distinct {
             Distinct::Distinct => (),
             Distinct::On(exprs) => {
                 for expr in exprs.iter() {
-                    validate_expr(expr, raw_request)?;
+                    validate_expr(expr)?;
                 }
             }
         }
@@ -421,14 +433,14 @@ fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Re
 
     if let Some(top) = &select.top {
         if let Some(expr) = &top.quantity {
-            validate_expr(expr, raw_request)?;
+            validate_expr(expr)?;
         }
     }
 
     for proj in select.projection.iter() {
         match proj {
-            SelectItem::UnnamedExpr(expr) => validate_expr(expr, raw_request)?,
-            SelectItem::ExprWithAlias { expr, .. } => validate_expr(expr, raw_request)?,
+            SelectItem::UnnamedExpr(expr) => validate_expr(expr)?,
+            SelectItem::ExprWithAlias { expr, .. } => validate_expr(expr)?,
             SelectItem::Wildcard(_) => (),
             SelectItem::QualifiedWildcard(_, _) => (),
         }
@@ -465,7 +477,7 @@ fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Re
                         "Lateral subqueries are not supported".to_owned(),
                     ));
                 }
-                validate_query_statement(subquery, raw_request)?;
+                validate_query_statement(subquery)?;
             }
             _ => {
                 return Err(MeshError::InvalidQuery(format!(
@@ -483,14 +495,14 @@ fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Re
     }
 
     if let Some(expr) = &select.selection {
-        validate_expr(expr, raw_request)?;
+        validate_expr(expr)?;
     }
 
     match &select.group_by {
         GroupByExpr::All => (),
         GroupByExpr::Expressions(exprs) => {
             for expr in exprs.iter() {
-                validate_expr(expr, raw_request)?;
+                validate_expr(expr)?;
             }
         }
     }
@@ -508,15 +520,15 @@ fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Re
     }
 
     for expr in &select.sort_by {
-        validate_expr(expr, raw_request)?;
+        validate_expr(expr)?;
     }
 
     if let Some(expr) = &select.having {
-        validate_expr(expr, raw_request)?;
+        validate_expr(expr)?;
     }
 
     for window in select.named_window.iter() {
-        validate_window_spec(&window.1, raw_request)?;
+        validate_window_spec(&window.1)?;
     }
 
     if select.qualify.is_some() {
@@ -528,18 +540,18 @@ fn validate_select_setexpr(select: &Select, raw_request: &RawQueryRequest) -> Re
     Ok(())
 }
 
-fn validate_query_body(body: &SetExpr, raw_request: &RawQueryRequest) -> Result<()> {
+fn validate_query_body(body: &SetExpr) -> Result<()> {
     match body {
-        SetExpr::Select(s) => validate_select_setexpr(s.as_ref(), raw_request)?,
-        SetExpr::Query(q) => validate_query_statement(q.as_ref(), raw_request)?,
+        SetExpr::Select(s) => validate_select_setexpr(s.as_ref())?,
+        SetExpr::Query(q) => validate_query_statement(q.as_ref())?,
         SetExpr::SetOperation { left, right, .. } => {
-            validate_query_body(left.as_ref(), raw_request)?;
-            validate_query_body(right.as_ref(), raw_request)?;
+            validate_query_body(left.as_ref())?;
+            validate_query_body(right.as_ref())?;
         }
         SetExpr::Values(values) => {
             for exprs in values.rows.iter() {
                 for expr in exprs.iter() {
-                    validate_expr(expr, raw_request)?;
+                    validate_expr(expr)?;
                 }
             }
         }
@@ -554,17 +566,17 @@ fn validate_query_body(body: &SetExpr, raw_request: &RawQueryRequest) -> Result<
 }
 
 /// Processes a single Statement::Query recursively, returning an Err if
-/// any constraint is violated. Called via [validate_sql_template].
+/// any constraint is violated. Called via [logical_round_trip].
 fn validate_query_statement(
     query: &datafusion::sql::sqlparser::ast::Query,
-    raw_request: &RawQueryRequest,
+    
 ) -> Result<()> {
     if let Some(with) = &query.with {
         for cte in with.cte_tables.iter() {
-            validate_query_statement(&cte.query, raw_request)?;
+            validate_query_statement(&cte.query)?;
         }
     }
-    validate_query_body(query.body.as_ref(), raw_request)?;
+    validate_query_body(query.body.as_ref())?;
     Ok(())
 }
 
@@ -574,9 +586,10 @@ mod tests {
     use arrow_schema::Schema;
 
     use crate::error::Result;
+    use crate::execute::validation::validate_sql;
     use crate::model::query::RawQueryRequest;
 
-    use super::validate_sql_template;
+    use super::logical_round_trip;
 
     #[test]
     fn insert_into_test() -> Result<()> {
@@ -591,7 +604,7 @@ mod tests {
             return_arrow_schema: Some(Schema::empty()),
         };
 
-        let err_msg = validate_sql_template(&raw_request)
+        let err_msg = validate_sql(&raw_request.sql)
             .expect_err("Query should have failed validation!")
             .to_string();
 
@@ -613,7 +626,7 @@ mod tests {
             return_arrow_schema: Some(Schema::empty()),
         };
 
-        let err_msg = validate_sql_template(&raw_request)
+        let err_msg = validate_sql(&raw_request.sql)
             .expect_err("Query should have failed validation!")
             .to_string();
 
@@ -641,7 +654,7 @@ mod tests {
             return_arrow_schema: Some(Schema::empty()),
         };
 
-        let err_msg = validate_sql_template(&raw_request)
+        let err_msg = validate_sql(&raw_request.sql)
             .expect_err("Query should have failed validation!")
             .to_string();
 

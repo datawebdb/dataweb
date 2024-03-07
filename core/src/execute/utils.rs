@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::error::Result;
 use crate::execute::{request_to_local_queries, request_to_remote_requests};
 
+use crate::model::entity::Information;
 use crate::model::query::{
     NewQueryTask, QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote,
     QueryTaskRemoteStatus, QueryTaskStatus, RawQueryRequest,
@@ -11,11 +12,39 @@ use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};
 use crate::{crud::PgDb, error::MeshError};
 
+use arrow_schema::{Field, SchemaBuilder, SchemaRef};
 use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 use uuid::Uuid;
 
+use super::planning::EntityContext;
+use super::validation::{logical_round_trip, validate_sql};
 use super::Requester;
+
+pub async fn validate_sql_and_logical_round_trip(sql: &str, db: &mut PgDb<'_>) -> Result<(String, Statement)>{
+    let (entity_name, statement) = validate_sql(sql)?;
+
+    let context = create_planning_context(&entity_name, db).await?;
+    let statement = logical_round_trip(statement, context)?;
+    Ok((entity_name, statement))
+}
+
+pub async fn create_planning_context(entity_name: &str, db: &mut PgDb<'_>) -> Result<EntityContext>{
+    let entity = db.get_entity(entity_name).await?;
+    let information = db.get_information_for_entity(entity.id).await?;
+    let schema = information_to_schema(information);
+    let context_provider = EntityContext::new(entity_name, schema);
+    Ok(context_provider)
+}
+
+/// Converts a Vec of [Information] to an arrow [SchemaRef]
+pub fn information_to_schema(information: Vec<Information>) -> SchemaRef{
+    let mut schema_builder = SchemaBuilder::new();
+        for info in information {
+            schema_builder.push(Field::new(info.name, info.arrow_dtype.inner, true));
+        }
+    Arc::new(schema_builder.finish())
+}
 
 /// Inspects a [RawQueryRequest] along with the validated x509 certificate fingerprint
 /// of the client submitting the request, to determine the [User] which originated the request,

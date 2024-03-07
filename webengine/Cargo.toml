@@ -3,6 +3,10 @@ name = "data_web_engine"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "data_web_engine"
+path = "src/lib.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

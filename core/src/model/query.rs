@@ -34,7 +34,8 @@ pub struct RawQueryRequest {
     pub sql: String,
     /// This is the globally unique [Uuid] for the query request, which is required for handling
     /// cyclical relay network topologies. If the same Uuid is encountered twice, the request should be
-    /// acknowledged as already in progress.
+    /// acknowledged as already in progress. This corresponds to the Uuid of the [QueryRequest] on the
+    /// originating [Relay].
     pub request_uuid: Option<Uuid>,
     /// This is the [User] that submitted the original request to the originating_relay
     pub requesting_user: Option<User>,
@@ -42,6 +43,7 @@ pub struct RawQueryRequest {
     #[serde(default = "no_relay")]
     pub originating_relay: Option<Relay>,
     /// This Uuid identifies the remote task on the originating relay which ultimately triggered this request
+    /// This corresponds to the Uuid of the [QueryTaskRemote] on the originating relay.
     pub originating_task_id: Option<Uuid>,
     /// If Passed, each relay will cast the returned RecordBatchStream to the requested [Schema].
     /// If not passed, the schema may vary slightly based on the QueryRunner and DataSource, due to

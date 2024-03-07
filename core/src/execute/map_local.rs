@@ -127,6 +127,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::execute::planning::EntityContext;
+    use crate::execute::validation::logical_round_trip;
     use crate::model::access_control::{ColumnPermission, RowPermission, SourcePermission};
     use crate::model::data_stores::options::SourceOptions;
     use crate::model::data_stores::DataField;
@@ -159,10 +160,8 @@ mod tests {
             Field::new("bar", DataType::UInt8, false),
         ]));
 
-        let context_provider = EntityContext::new("entityname", schema);
-        let sql_to_rel = SqlToRel::new(&context_provider);
-        let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
-        let mut statement = query_to_sql(&logical_plan)?;
+        let context = EntityContext::new("entityname", schema);
+        let mut statement = logical_round_trip(statement, context)?;
 
         println!("Round trip statement: {statement}");
 

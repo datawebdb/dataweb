@@ -5,11 +5,10 @@ use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use mesh::error::MeshError;
 
 use mesh::execute::utils::{
-    create_query_request, map_and_create_local_tasks, map_and_create_remote_tasks,
-    verify_query_origination_information,
+    create_query_request, map_and_create_local_tasks, map_and_create_remote_tasks, validate_sql_and_logical_round_trip, verify_query_origination_information
 };
-use mesh::execute::validation::validate_sql_template;
 
+use mesh::execute::validation::logical_round_trip;
 use tracing::{debug, info};
 
 use super::utils::{count_task_status, stream_all_task_results};
@@ -191,7 +190,7 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    let (entity_name, statement) = validate_sql_template(&query)?;
+    let (entity_name, statement) = validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
 
     debug!("Creating QueryRequest");
     let request = match create_query_request(

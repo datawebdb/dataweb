@@ -73,13 +73,13 @@ impl TryFrom<(TrinoConnection, TrinoSource)> for TrinoRunner {
     }
 }
 
-fn trino_dataset_to_ndjson(dset: DataSet<Row>) -> Vec<serde_json::Value> {
-    let (trino_types, rows) = dset.split();
+fn trino_dataset_to_ndjson(dset: DataSet<Row>, schema: SchemaRef) -> Vec<serde_json::Value> {
+    let (_, rows) = dset.split();
     let mut json_rows = Vec::with_capacity(rows.len());
     for row in rows {
         let mut row_map = serde_json::Map::new();
-        for (js_val, trino_type) in row.into_json().into_iter().zip(trino_types.iter()) {
-            row_map.insert(trino_type.0.clone(), js_val);
+        for (js_val, field) in row.into_json().into_iter().zip(schema.fields().iter()) {
+            row_map.insert(field.name().to_string(), js_val);
         }
         json_rows.push(serde_json::Value::Object(row_map))
     }
@@ -177,12 +177,16 @@ async fn execute_stream(client: Arc<Client>, query: Query) -> Result<SendableRec
     let schema_clone = schema.clone();
     let rb_stream = peekable.map(move |data| match data {
         Ok(d) => {
-            let ndjson = trino_dataset_to_ndjson(d);
+            debug!("trino raw row: {:?}", &d.as_slice()[..5]);
+            let ndjson = trino_dataset_to_ndjson(d, schema_clone.clone());
+            debug!("trino json value row: {:?}", &ndjson[..5]);
             let mut decoder = ReaderBuilder::new(schema_clone.clone()).build_decoder()?;
             decoder.serialize(&ndjson)?;
-            Ok(decoder.flush()?.ok_or(DataFusionError::Execution(
+            let rb = decoder.flush()?.ok_or(DataFusionError::Execution(
                 "Got empty batch from trino!".to_string(),
-            ))?)
+            ))?;
+            debug!("trino recordbatch: {:?}",rb.slice(0, 5));
+            Ok(rb)
         }
         Err(e) => Err(e),
     });

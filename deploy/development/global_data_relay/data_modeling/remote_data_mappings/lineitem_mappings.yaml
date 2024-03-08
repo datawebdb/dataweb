@@ -42,8 +42,7 @@ spec:
           info_mapped_name: shipdate
     - relay_name: emea_data_relay
       remote_entity_name: lineitem
-      entity_map:  
-        sql: select *, extendedprice/quantity as unitprice from lineitem
+      sql: select *, extendedprice/quantity as unitprice from lineitem
       relay_mappings:
         - local_info: unitprice
           info_mapped_name: unitprice  
@@ -76,8 +75,7 @@ spec:
           info_mapped_name: shipdate
     - relay_name: apac_data_relay
       remote_entity_name: lineitem
-      entity_map:  
-        sql: select *, extendedprice/quantity as unitprice from lineitem
+      sql: select *, extendedprice/quantity as unitprice from lineitem
       relay_mappings:
         - local_info: unitprice
           info_mapped_name: unitprice  

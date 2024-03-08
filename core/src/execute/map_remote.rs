@@ -5,6 +5,7 @@ use crate::error::Result;
 use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping};
 
 use datafusion::sql::sqlparser::ast::Statement;
+use tracing::debug;
 
 use super::parse_utils::{
     apply_col_iden_mapping, parse_sql_as_table_factor, substitute_table_factor,
@@ -32,6 +33,7 @@ fn apply_source_substitutions(
     source: &RemoteEntityMapping,
 ) -> Result<()> {
     let source_sql = &source.sql;
+    debug!("Substituting {source_sql} for remote");
     let remote_table = parse_sql_as_table_factor(source_sql)?;
 
     substitute_table_factor(statement, remote_table)?;

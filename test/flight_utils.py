@@ -64,10 +64,11 @@ def execute_query(query, relay_host, relay_port, access_level='default_access') 
     resp = client.get_flight_info(flight_desc)
     dfs = []
     for endpoint in resp.endpoints:
-        try:
-            dfs.append(read_endpoint(endpoint, cert, key, cacert))
-        except Exception as e:
-            print(e)
+        dfs.append(read_endpoint(endpoint, cert, key, cacert))
+        #try:
+        #    dfs.append(read_endpoint(endpoint, cert, key, cacert))
+        #except Exception as e:
+        #    print(e)
     
     df = pd.concat(dfs)
     

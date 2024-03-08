@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::{NaiveDate, NaiveDateTime};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{JoinConstraint, JoinType, Like};
 use datafusion::sql::sqlparser::ast::{JoinOperator, OrderByExpr};
@@ -27,6 +28,9 @@ use crate::ast_builder::{
     BuilderError, QueryBuilder, RelationBuilder, SelectBuilder, TableRelationBuilder,
     TableWithJoinsBuilder,
 };
+
+/// The number of days from day 1 CE (0001-1-1) to Unix Epoch (1970-01-01)
+static DAYS_FROM_CE_TO_UNIX_EPOCH: i32 = 719_163;
 
 pub fn from_df_plan(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast::Statement> {
     query_to_sql(plan, dialect)
@@ -321,7 +325,10 @@ fn expr_to_sql(
             let r = expr_to_sql(right.as_ref(), _schema, 0, dialect.clone())?;
             let op = op_to_sql(op)?;
 
-            Ok(binary_op_to_sql(l, r, op))
+            // Nested ensures order is perseved as specified in the LogicalPlan Expression tree vs
+            // typical arithmentic precedence.
+            // For example, col + 1 / 2 is not the same as (col + 1) / 2
+            Ok(SQLExpr::Nested(Box::new(binary_op_to_sql(l, r, op))))
         }
         Expr::Case(Case {
             expr,
@@ -334,7 +341,7 @@ fn expr_to_sql(
             let inner_expr = expr_to_sql(expr.as_ref(), _schema, 0, dialect.clone())?;
             Ok(SQLExpr::Cast { expr: Box::new(inner_expr), data_type: df_to_sql_data_type(data_type)?, format: None })
         },
-        Expr::Literal(value) => Ok(ast::Expr::Value(scalar_to_sql(value)?)),
+        Expr::Literal(value) => Ok(scalar_to_sql(value)?),
         Expr::Alias(Alias { expr, name: _, .. }) => {
             expr_to_sql(expr, _schema, _col_ref_offset, dialect.clone())
         }
@@ -476,89 +483,103 @@ fn op_to_sql(op: &Operator) -> Result<ast::BinaryOperator> {
     }
 }
 
-fn scalar_to_sql(v: &ScalarValue) -> Result<ast::Value> {
+/// DataFusion ScalarValues sometimes require a SQLExpr to construct.
+/// For example ScalarValue::Date32(d) corresponds to the SqlExpr CAST('datestr' as DATE)
+fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
     match v {
-        ScalarValue::Null => Ok(ast::Value::Null),
-        ScalarValue::Boolean(Some(b)) => Ok(ast::Value::Boolean(b.to_owned())),
-        ScalarValue::Boolean(None) => Ok(ast::Value::Null),
-        ScalarValue::Float32(Some(f)) => Ok(ast::Value::Number(f.to_string(), false)),
-        ScalarValue::Float32(None) => Ok(ast::Value::Null),
-        ScalarValue::Float64(Some(f)) => Ok(ast::Value::Number(f.to_string(), false)),
-        ScalarValue::Float64(None) => Ok(ast::Value::Null),
+        ScalarValue::Null => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Boolean(Some(b)) => Ok(SQLExpr::Value(ast::Value::Boolean(b.to_owned()))),
+        ScalarValue::Boolean(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Float32(Some(f)) => Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false))),
+        ScalarValue::Float32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Float64(Some(f)) => Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false))),
+        ScalarValue::Float64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Decimal128(Some(_), ..) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Decimal128(None, ..) => Ok(ast::Value::Null),
+        ScalarValue::Decimal128(None, ..) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Decimal256(Some(_), ..) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Decimal256(None, ..) => Ok(ast::Value::Null),
-        ScalarValue::Int8(Some(i)) => Ok(ast::Value::Number(i.to_string(), false)),
-        ScalarValue::Int8(None) => Ok(ast::Value::Null),
-        ScalarValue::Int16(Some(i)) => Ok(ast::Value::Number(i.to_string(), false)),
-        ScalarValue::Int16(None) => Ok(ast::Value::Null),
-        ScalarValue::Int32(Some(i)) => Ok(ast::Value::Number(i.to_string(), false)),
-        ScalarValue::Int32(None) => Ok(ast::Value::Null),
-        ScalarValue::Int64(Some(i)) => Ok(ast::Value::Number(i.to_string(), false)),
-        ScalarValue::Int64(None) => Ok(ast::Value::Null),
-        ScalarValue::UInt8(Some(ui)) => Ok(ast::Value::Number(ui.to_string(), false)),
-        ScalarValue::UInt8(None) => Ok(ast::Value::Null),
-        ScalarValue::UInt16(Some(ui)) => Ok(ast::Value::Number(ui.to_string(), false)),
-        ScalarValue::UInt16(None) => Ok(ast::Value::Null),
-        ScalarValue::UInt32(Some(ui)) => Ok(ast::Value::Number(ui.to_string(), false)),
-        ScalarValue::UInt32(None) => Ok(ast::Value::Null),
-        ScalarValue::UInt64(Some(ui)) => Ok(ast::Value::Number(ui.to_string(), false)),
-        ScalarValue::UInt64(None) => Ok(ast::Value::Null),
-        ScalarValue::Utf8(Some(str)) => Ok(ast::Value::SingleQuotedString(str.to_string())),
-        ScalarValue::Utf8(None) => Ok(ast::Value::Null),
-        ScalarValue::LargeUtf8(Some(str)) => Ok(ast::Value::SingleQuotedString(str.to_string())),
-        ScalarValue::LargeUtf8(None) => Ok(ast::Value::Null),
+        ScalarValue::Decimal256(None, ..) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Int8(Some(i)) => Ok(SQLExpr::Value(ast::Value::Number(i.to_string(), false))),
+        ScalarValue::Int8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Int16(Some(i)) => Ok(SQLExpr::Value(ast::Value::Number(i.to_string(), false))),
+        ScalarValue::Int16(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Int32(Some(i)) => Ok(SQLExpr::Value(ast::Value::Number(i.to_string(), false))),
+        ScalarValue::Int32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Int64(Some(i)) => Ok(SQLExpr::Value(ast::Value::Number(i.to_string(), false))),
+        ScalarValue::Int64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::UInt8(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::UInt16(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt16(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::UInt32(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::UInt64(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Utf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(str.to_string()))),
+        ScalarValue::Utf8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::LargeUtf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(str.to_string()))),
+        ScalarValue::LargeUtf8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Binary(Some(_)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Binary(None) => Ok(ast::Value::Null),
+        ScalarValue::Binary(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::FixedSizeBinary(..) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::LargeBinary(Some(_)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::LargeBinary(None) => Ok(ast::Value::Null),
+        ScalarValue::LargeBinary(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::FixedSizeList(_a) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::List(_a) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::LargeList(_a) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Date32(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Date32(None) => Ok(ast::Value::Null),
-        ScalarValue::Date64(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Date64(None) => Ok(ast::Value::Null),
+        ScalarValue::Date32(Some(d)) => {
+            let date =  NaiveDate::from_num_days_from_ce_opt(d + DAYS_FROM_CE_TO_UNIX_EPOCH)
+                .ok_or(DataFusionError::NotImplemented(format!(
+                    "Date overflow error for {d:?}"
+                )))?;
+            Ok(SQLExpr::Cast { expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(date.to_string()))), data_type: SQLDataType::Date, format: None })
+        },
+        ScalarValue::Date32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
+        ScalarValue::Date64(Some(ms)) => {
+            let datetime = NaiveDateTime::from_timestamp_millis(*ms)
+                .ok_or(DataFusionError::NotImplemented(format!(
+                    "Datetime overflow error for {ms:?}"
+                )))?;
+            Ok(SQLExpr::Cast { expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(datetime.to_string()))), data_type: SQLDataType::Datetime(None), format: None })
+        },
+        ScalarValue::Date64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Time32Second(Some(_t)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Time32Second(None) => Ok(ast::Value::Null),
+        ScalarValue::Time32Second(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Time32Millisecond(Some(_t)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Time32Millisecond(None) => Ok(ast::Value::Null),
+        ScalarValue::Time32Millisecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Time64Microsecond(Some(_t)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Time64Microsecond(None) => Ok(ast::Value::Null),
+        ScalarValue::Time64Microsecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Time64Nanosecond(Some(_t)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Time64Nanosecond(None) => Ok(ast::Value::Null),
+        ScalarValue::Time64Nanosecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::TimestampSecond(Some(_ts), _) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::TimestampSecond(None, _) => Ok(ast::Value::Null),
+        ScalarValue::TimestampSecond(None, _) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::TimestampMillisecond(Some(_ts), _) => {
             not_impl_err!("Unsupported scalar: {v:?}")
         }
-        ScalarValue::TimestampMillisecond(None, _) => Ok(ast::Value::Null),
+        ScalarValue::TimestampMillisecond(None, _) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::TimestampMicrosecond(Some(_ts), _) => {
             not_impl_err!("Unsupported scalar: {v:?}")
         }
-        ScalarValue::TimestampMicrosecond(None, _) => Ok(ast::Value::Null),
+        ScalarValue::TimestampMicrosecond(None, _) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::TimestampNanosecond(Some(_ts), _) => {
             not_impl_err!("Unsupported scalar: {v:?}")
         }
-        ScalarValue::TimestampNanosecond(None, _) => Ok(ast::Value::Null),
+        ScalarValue::TimestampNanosecond(None, _) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::IntervalYearMonth(Some(_i)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::IntervalYearMonth(None) => Ok(ast::Value::Null),
+        ScalarValue::IntervalYearMonth(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::IntervalDayTime(Some(_i)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::IntervalDayTime(None) => Ok(ast::Value::Null),
+        ScalarValue::IntervalDayTime(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::IntervalMonthDayNano(Some(_i)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::IntervalMonthDayNano(None) => Ok(ast::Value::Null),
+        ScalarValue::IntervalMonthDayNano(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::DurationSecond(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::DurationSecond(None) => Ok(ast::Value::Null),
+        ScalarValue::DurationSecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::DurationMillisecond(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::DurationMillisecond(None) => Ok(ast::Value::Null),
+        ScalarValue::DurationMillisecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::DurationMicrosecond(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::DurationMicrosecond(None) => Ok(ast::Value::Null),
+        ScalarValue::DurationMicrosecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::DurationNanosecond(Some(_d)) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::DurationNanosecond(None) => Ok(ast::Value::Null),
+        ScalarValue::DurationNanosecond(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Struct(Some(_), _) => not_impl_err!("Unsupported scalar: {v:?}"),
-        ScalarValue::Struct(None, _) => Ok(ast::Value::Null),
+        ScalarValue::Struct(None, _) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Dictionary(..) => not_impl_err!("Unsupported scalar: {v:?}"),
     }
 }

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use datafusion::sql::sqlparser::{
+use datafusion::{execution::context::ExecutionProps, optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext, SimplifyExpressions}, sql::sqlparser::{
     ast::{
         visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr,
         Statement, TableFactor, TableWithJoins,
     },
     dialect::GenericDialect,
     parser::Parser,
-};
+}};
 
 use crate::error::{MeshError, Result};
 

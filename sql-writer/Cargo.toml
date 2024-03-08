@@ -9,7 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 datafusion.workspace = true
-# derive_builder = "0.13.0"
+chrono = "0.4.31"
 
 [dev-dependencies]
 tokio = "1.35.1"

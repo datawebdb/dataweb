@@ -1854,6 +1854,7 @@ dependencies = [
 name = "datafusion-sql-writer"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "datafusion 34.0.0",
  "tokio",
 ]

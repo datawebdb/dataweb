@@ -21,6 +21,8 @@ use super::planning::EntityContext;
 use super::validation::{logical_round_trip, validate_sql};
 use super::Requester;
 
+/// Uses datafusion to logically plan and optimize the [Statement], ultimately converting back to
+/// a [Statement] which has alias names resolved, columns fully qualified, expressions simplified and more.
 pub async fn validate_sql_and_logical_round_trip(
     sql: &str,
     db: &mut PgDb<'_>,

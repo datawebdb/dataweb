@@ -16,9 +16,9 @@ arrow-schema = { workspace = true }
 arrow-array = { workspace = true }
 arrow-json = { workspace = true }
 arrow-flight = { workspace = true }
-datafusion-federation-sql = { git = "https://github.com/devinjdangelo/datafusion-federation", branch="public_query_to_sql" }
 async-trait = "0.1.77"
 datafusion = { workspace = true }
+datafusion-sql-writer = { path="../sql-writer" }
 diesel = { version = "2.1.3", features = ["postgres", "serde_json", "uuid"] }
 diesel_migrations="2.0.0"
 diesel-async = { version="0.4.1", features = ["postgres", "bb8"] }

@@ -72,7 +72,7 @@ mod tests {
     use arrow_schema::{DataType, Field, Schema};
     use datafusion::sql::planner::SqlToRel;
     use datafusion::sql::sqlparser::{dialect::GenericDialect, parser::Parser};
-    use datafusion_federation_sql::query_to_sql;
+    use datafusion_sql_writer::from_df_plan;
     use uuid::Uuid;
 
     use crate::error::{MeshError, Result};
@@ -97,7 +97,7 @@ mod tests {
         let context_provider = EntityContext::new("entityname", schema);
         let sql_to_rel = SqlToRel::new(&context_provider);
         let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
-        let mut statement = query_to_sql(&logical_plan)?;
+        let mut statement = from_df_plan(&logical_plan, Arc::new(dialect))?;
 
         println!("Round trip statement: {statement}");
 

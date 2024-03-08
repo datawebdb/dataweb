@@ -61,13 +61,11 @@ spec:
           info_mapped_name: discount
           transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
         - local_info: tax_percent
           info_mapped_name: tax
           transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate

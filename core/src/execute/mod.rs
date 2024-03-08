@@ -72,17 +72,24 @@ pub async fn request_to_local_queries(
 ) -> Result<Vec<(Uuid, Query)>> {
     let sources = db.get_mappings_by_entity_names(vec![entity_name]).await?;
 
+    debug!("Got mappings for entity {entity_name}: {sources:?}");
     let mut queries = Vec::with_capacity(sources.len());
     for ((_, source), mappings) in sources {
+        debug!("Creating map for {}", source.name);
         let mut info_map_lookup = HashMap::with_capacity(mappings.len());
-        for (_, info, field, map) in mappings.iter() {
+        for (entity, info, field, map) in mappings.iter() {
+            debug!("entity {entity:?}");
+            debug!("info {info:?}");
+            debug!("field {field:?})");
+            debug!("map {map:?}");
+            debug!("Adding lookup for {} to {}", info.name, field.path);
             if info_map_lookup
                 .insert(info.name.as_str(), (field, map))
                 .is_some()
             {
                 return Err(MeshError::InvalidQuery(format!(
-                    "Found duplicate mapping for info {} and source {}",
-                    info.name, source.name
+                    "Found duplicate mapping for info {} and source {} field {}",
+                    info.name, source.name, field.name,
                 )));
             }
         }

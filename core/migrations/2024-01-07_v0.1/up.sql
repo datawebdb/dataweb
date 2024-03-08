@@ -39,7 +39,8 @@ CREATE TABLE field_mappings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     data_field_id uuid NOT NULL REFERENCES data_field(id),
     information_id uuid NOT NULL REFERENCES information(id),
-    transformation jsonb NOT NULL
+    transformation jsonb NOT NULL,
+    UNIQUE (data_field_id, information_id)
 );
 
 CREATE TABLE relays (

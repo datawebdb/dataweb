@@ -15,7 +15,7 @@ use uuid::Uuid;
 /// how the [DataField] can be converted into the [Information] via a
 /// [Transformation].
 #[derive(
-    Queryable, Selectable, Insertable, Associations, Debug, PartialEq, Serialize, Deserialize,
+    Queryable, Selectable, Insertable, Associations, Debug, PartialEq, Serialize, Deserialize, AsChangeset
 )]
 #[diesel(belongs_to(Information), belongs_to(DataField))]
 #[diesel(table_name = field_mappings)]

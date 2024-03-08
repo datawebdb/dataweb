@@ -25,10 +25,12 @@ pub async fn validate_sql_and_logical_round_trip(
     sql: &str,
     db: &mut PgDb<'_>,
 ) -> Result<(String, Statement)> {
+    debug!("Parsing SQL to statement: {sql}");
     let (entity_name, statement) = validate_sql(sql)?;
-
+    debug!("pre round trip statement: {statement}");
     let context = create_planning_context(&entity_name, db).await?;
     let statement = logical_round_trip(statement, context)?;
+    debug!("post round trip statement: {statement}");
     Ok((entity_name, statement))
 }
 

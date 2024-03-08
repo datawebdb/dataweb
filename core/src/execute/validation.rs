@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::error::Result;
 
 use crate::error::MeshError;
@@ -9,7 +11,7 @@ use datafusion::sql::sqlparser::ast::{
 };
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
-use datafusion_federation_sql::query_to_sql;
+use datafusion_sql_writer::from_df_plan;
 
 use super::planning::EntityContext;
 
@@ -58,7 +60,7 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
 pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<Statement> {
     let sql_to_rel = SqlToRel::new(&context);
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
-    Ok(query_to_sql(&logical_plan)?)
+    Ok(from_df_plan(&logical_plan, Arc::new(GenericDialect {}))?)
 }
 
 /// Each [Statement] should only reference a single [Entity]. Verifies this is the case
@@ -358,23 +360,9 @@ fn validate_expr(expr: &Expr) -> Result<()> {
                 "MatchAgainst query expressions are not allowed".into(),
             ))
         }
-        Expr::RLike {
-            negated: _,
-            expr: _,
-            pattern: _,
-            regexp: _,
-        } => todo!(),
-        Expr::Convert {
-            expr: _,
-            data_type: _,
-            charset: _,
-            target_before_value: _,
-        } => todo!(),
-        Expr::Struct {
-            values: _,
-            fields: _,
-        } => todo!(),
-        Expr::Named { expr: _, name: _ } => todo!(),
+        _ => return Err(MeshError::NotImplemented(
+            "Unrecognized query expression is not implemented".into(),
+        ))
     }
     Ok(())
 }

@@ -89,9 +89,10 @@ pub(crate) fn substitute_table_factor(
     statement: &mut Statement,
     new_table: TableFactor,
 ) -> Result<()> {
-    visit_table_factor_mut(statement, |table| {
+    let r = visit_table_factor_mut(statement, |table| {
         if let TableFactor::Table { alias, .. } = table {
             // Subsitute in the alias for the table being replaced into the inner derived table
+            // all other fields are cloned
             *table = match &new_table {
                 TableFactor::Derived {
                     lateral, subquery, ..
@@ -100,11 +101,30 @@ pub(crate) fn substitute_table_factor(
                     subquery: subquery.clone(),
                     alias: alias.clone(),
                 },
-                _ => unreachable!(),
+                TableFactor::Table {
+                    name,
+                    args,
+                    with_hints,
+                    version,
+                    partitions,
+                    ..
+                } => TableFactor::Table {
+                    name: name.clone(),
+                    alias: alias.clone(),
+                    args: args.clone(),
+                    with_hints: with_hints.clone(),
+                    version: version.clone(),
+                    partitions: partitions.clone(),
+                },
+                _ => return std::ops::ControlFlow::Break(MeshError::InvalidQuery(format!("Found unsupported entity mapping, only nested queries are supported."))),
             };
         };
-        std::ops::ControlFlow::<()>::Continue(())
+        std::ops::ControlFlow::Continue(())
     });
+    // Raise error if traversal short circuited with an error
+    if let std::ops::ControlFlow::Break(e) = r {
+        return Err(e);
+    }
     Ok(())
 }
 

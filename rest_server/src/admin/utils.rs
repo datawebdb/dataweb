@@ -104,7 +104,6 @@ async fn process_local_mapping_decl(
     map_decl: ResolvedLocalMappingDeclaration,
 ) -> Result<()> {
     let entity = db.get_entity(&map_decl.entity_name).await?;
-    let mut all_mappings = vec![];
     for data_con_map_decl in map_decl.mappings {
         let data_con = db.get_connection(&data_con_map_decl.data_con_name).await?;
         for source_map_decl in data_con_map_decl.source_mappings {
@@ -119,11 +118,11 @@ async fn process_local_mapping_decl(
                     data_field_id: field.id,
                     transformation: field_map_decl.transformation,
                 };
-                all_mappings.push(map);
+                db.upsert_local_mapping(&map).await?;
             }
         }
     }
-    db.create_mapping(&all_mappings).await?;
+    
     Ok(())
 }
 
@@ -188,19 +187,20 @@ async fn process_remote_map_decl(
     let entity = db.get_entity(&remote_map_decl.entity_name).await?;
     for peer_map in remote_map_decl.mappings {
         let relay = db.get_relay_by_name(&peer_map.relay_name).await?;
-        let entity_map = match &peer_map.entity_map {
-            Some(map) => NewRemoteEntityMapping {
-                sql: map.sql.clone(),
-                relay_id: relay.id,
-                entity_id: entity.id,
-                remote_entity_name: peer_map.remote_entity_name.clone(),
-            },
-            None => NewRemoteEntityMapping {
-                sql: "".to_string(),
-                relay_id: relay.id,
-                entity_id: entity.id,
-                remote_entity_name: peer_map.remote_entity_name.clone(),
-            },
+
+        // If no SQL transformation is defined, simple substitute the remote entity name
+        // in place of the local entity name.
+        let sql = if let Some(declared_sql) = peer_map.sql {
+            declared_sql.clone()
+        } else {
+            peer_map.remote_entity_name.clone()
+        };
+
+        let entity_map = NewRemoteEntityMapping {
+            sql,
+            relay_id: relay.id,
+            entity_id: entity.id,
+            remote_entity_name: peer_map.remote_entity_name.clone(),
         };
 
         let entity_map = db.upsert_remote_entity_mapping(&entity_map).await?;

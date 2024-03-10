@@ -4,6 +4,8 @@ use crate::error::Result;
 
 use crate::error::MeshError;
 
+use arrow_schema::Schema;
+use arrow_schema::SchemaRef;
 use datafusion::config::ConfigOptions;
 use datafusion::optimizer::analyzer::Analyzer;
 use datafusion::optimizer::common_subexpr_eliminate::CommonSubexprEliminate;
@@ -126,15 +128,17 @@ fn optimzer_rules() -> Vec<Arc<dyn OptimizerRule + Sync + Send>> {
 
 /// Uses datafusion to logically plan and optimize the [Statement], ultimately converting back to
 /// a [Statement] which has alias names resolved, columns fully qualified, expressions simplified and more.
-pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<Statement> {
+pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<(Statement, Schema)> {
     let sql_to_rel = SqlToRel::new(&context);
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
     debug!("Unoptimized Plan: {}", logical_plan.display_indent());
-    let logical_plan = Analyzer::new().execute_and_check(&logical_plan, &ConfigOptions::default(), |_, _| {})?;
-    debug!("Analyzed Plan: {}",logical_plan.display_indent());
-    let logical_plan = Optimizer::with_rules(optimzer_rules()).optimize(&logical_plan, &OptimizerContext::new(), |_,_| {})?;
-    debug!("Optimized Plan: {}", logical_plan.display_indent());
-    Ok(from_df_plan(&logical_plan, Arc::new(PostgreSqlDialect {}))?)
+    // let logical_plan = Analyzer::new().execute_and_check(&logical_plan, &ConfigOptions::default(), |_, _| {})?;
+    // debug!("Analyzed Plan: {}",logical_plan.display_indent());
+    // let logical_plan = Optimizer::with_rules(optimzer_rules()).optimize(&logical_plan, &OptimizerContext::new(), |_,_| {})?;
+    // debug!("Optimized Plan: {}", logical_plan.display_indent());
+    let schema: Schema = logical_plan.schema().as_ref().into();
+    let statement = from_df_plan(&logical_plan, Arc::new(PostgreSqlDialect {}))?;
+    Ok((statement, schema))
 }
 
 /// Each [Statement] should only reference a single [Entity]. Verifies this is the case

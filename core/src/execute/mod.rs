@@ -50,6 +50,27 @@ where
     ControlFlow::Continue(())
 }
 
+struct QueryVisitor<F>(F);
+
+impl<E, F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>> VisitorMut for QueryVisitor<F> {
+    type Break = E;
+
+    fn post_visit_query(&mut self, query: &mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<Self::Break> {
+        self.0(query)
+    }
+    
+}
+
+pub fn visit_query_mut<V, E, F>(v: &mut V, f: F) -> ControlFlow<E>
+where
+    V: VisitMut,
+    F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>,
+{
+    let mut visitor = QueryVisitor(f);
+    v.visit(&mut visitor)?;
+    ControlFlow::Continue(())
+}
+
 /// Represents either the [Relay] or [User] from which a request was directly
 /// received. This is may be distinct from the originating_relay which originated
 /// the request, but may not be the relay from which the request was directly

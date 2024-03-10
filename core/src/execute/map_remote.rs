@@ -8,7 +8,7 @@ use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 
 use super::parse_utils::{
-    apply_col_iden_mapping, parse_sql_as_table_factor, substitute_table_factor,
+    apply_aliases, apply_col_iden_mapping, parse_sql_as_table_factor, substitute_table_factor
 };
 
 /// Substitutes appropriate [Entity][crate::model::entity::Entity] and
@@ -21,8 +21,9 @@ pub(crate) fn map_remote_request(
     entity_map: &RemoteEntityMapping,
     info_map_lookup: &HashMap<&str, &RemoteInfoMapping>,
 ) -> Result<Statement> {
-    apply_source_substitutions(&mut statement, entity_map)?;
 
+    apply_source_substitutions(&mut statement, entity_map)?;
+    apply_aliases(&mut statement, entity_name)?;
     apply_info_substitutions(&mut statement, info_map_lookup, entity_name)?;
 
     Ok(statement)

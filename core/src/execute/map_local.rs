@@ -15,8 +15,7 @@ use crate::{
 };
 
 use super::parse_utils::{
-    apply_col_iden_mapping, iden_str_to_select_item, parse_sql_as_expr, parse_sql_as_table_factor,
-    projected_filtered_query, substitute_table_factor,
+    apply_aliases, apply_col_iden_mapping, iden_str_to_select_item, parse_sql_as_expr, parse_sql_as_table_factor, projected_filtered_query, substitute_table_factor
 };
 
 /// Substitutes appropriate table names and fields for a specific source
@@ -29,6 +28,7 @@ pub(crate) fn map_sql(
     permission: SourcePermission,
 ) -> Result<Statement> {
     apply_source_substitutions(&mut statement, source, &permission)?;
+    apply_aliases(&mut statement, entity_name)?;
     apply_info_substitutions(&mut statement, info_map_lookup, &permission, entity_name)?;
 
     Ok(statement)
@@ -161,7 +161,7 @@ mod tests {
         ]));
 
         let context = EntityContext::new("entityname", schema);
-        let mut statement = logical_round_trip(statement, context)?;
+        let (mut statement, _) = logical_round_trip(statement, context)?;
 
         println!("Round trip statement: {statement}");
 

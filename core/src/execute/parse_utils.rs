@@ -11,7 +11,7 @@ use datafusion::{execution::context::ExecutionProps, optimizer::simplify_express
 
 use crate::error::{MeshError, Result};
 
-use super::visit_table_factor_mut;
+use super::{visit_query_mut, visit_table_factor_mut};
 
 static DIALECT: GenericDialect = GenericDialect {};
 
@@ -154,6 +154,35 @@ fn maybe_extract_info<'a>(expr: &'a Expr, entity_name: &'a str) -> Option<&'a St
     }
 }
 
+/// Visit all [SelectItem]s and make UnnamedExprs into ExprWithAlias so that fields retain their names
+/// even when transformed by [apply_col_iden_mapping].
+pub(crate) fn apply_aliases(
+    statement: &mut Statement,
+    entity_name: &str,
+) -> Result<()>{
+    visit_query_mut(statement, |query| {
+        if let SetExpr::Select(select) = query.body.as_mut(){
+            let updated_proj = select.projection.iter()
+                .map(|item| {
+                    if let SelectItem::UnnamedExpr(expr) = item{
+                        let info_name = match maybe_extract_info(expr, entity_name) {
+                            Some(i) => i,
+                            None => return item.clone(),
+                        };
+                        SelectItem::ExprWithAlias { expr: expr.clone(), alias: Ident { value: info_name.to_string(), quote_style: None } }
+                    } else{
+                        item.clone()
+                    }
+                })
+                .collect::<Vec<_>>();
+            select.projection = updated_proj;
+        }
+        std::ops::ControlFlow::<()>::Continue(())
+    });
+
+    Ok(())
+}
+
 /// Rewrites [Statement] replacing all Expr::CompoundIdentifiers for the passed entity_name.
 /// These are assumed to be normalized by logical planning into a two part identifier like
 /// `Entity Name`.`Info Name`.
@@ -175,7 +204,6 @@ pub(crate) fn apply_col_iden_mapping(
                 return std::ops::ControlFlow::Continue(());
             }
         };
-
         match parse_sql_as_expr(transformed_info_sql) {
             Ok(transformed_expr) => *expr = transformed_expr,
             Err(e) => return std::ops::ControlFlow::Break(Err(e)),

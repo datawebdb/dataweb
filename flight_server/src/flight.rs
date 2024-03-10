@@ -514,7 +514,7 @@ impl FlightService for FlightRelay {
             .map_err(|e| Status::internal(format!("failed to connect to database! {e}")))?;
 
         let flight_descriptor = get_info_request.into_inner();
-        let query: RawQueryRequest =
+        let mut query: RawQueryRequest =
             serde_json::from_slice(&flight_descriptor.cmd).map_err(|_e| {
                 Status::invalid_argument(
                     "FlightDescriptior.cmd is not a valid JSON encoded RawQueryRequest",
@@ -554,11 +554,17 @@ impl FlightService for FlightRelay {
         }
 
         debug!("Checking if sql is allowed and logically valid...");
-        let (entity_name, statement) = validate_sql_and_logical_round_trip(&query.sql, &mut db)
+        let (entity_name, statement, logical_schema) = validate_sql_and_logical_round_trip(&query.sql, &mut db)
             .await
             .map_err(|e| {
                 Status::invalid_argument(format!("Query validation failed with error {e}"))
             })?;
+
+        if query.return_arrow_schema.is_some(){
+            ()
+        } else{
+            query.return_arrow_schema = Some(logical_schema);
+        }
 
         debug!("Post round trip sql: {statement}");
 

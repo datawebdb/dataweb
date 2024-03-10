@@ -12,7 +12,7 @@ use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};
 use crate::{crud::PgDb, error::MeshError};
 
-use arrow_schema::{Field, SchemaBuilder, SchemaRef};
+use arrow_schema::{Field, Schema, SchemaBuilder, SchemaRef};
 use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 use uuid::Uuid;
@@ -26,14 +26,14 @@ use super::Requester;
 pub async fn validate_sql_and_logical_round_trip(
     sql: &str,
     db: &mut PgDb<'_>,
-) -> Result<(String, Statement)> {
+) -> Result<(String, Statement, Schema)> {
     debug!("Parsing SQL to statement: {sql}");
     let (entity_name, statement) = validate_sql(sql)?;
     debug!("pre round trip statement: {statement}");
     let context = create_planning_context(&entity_name, db).await?;
-    let statement = logical_round_trip(statement, context)?;
+    let (statement, schema) = logical_round_trip(statement, context)?;
     debug!("post round trip statement: {statement}");
-    Ok((entity_name, statement))
+    Ok((entity_name, statement, schema))
 }
 
 pub async fn create_planning_context(

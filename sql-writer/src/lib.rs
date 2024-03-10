@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use ast_builder::DerivedRelationBuilder;
 use chrono::{NaiveDate, NaiveDateTime};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{JoinConstraint, JoinType, Like};
@@ -10,7 +11,7 @@ use datafusion::{
     sql::sqlparser::ast::{self, Expr as SQLExpr, DataType as SQLDataType},
 };
 
-use datafusion::common::{not_impl_err, DFSchema};
+use datafusion::common::{internal_err, not_impl_err, DFSchema};
 use datafusion::common::{Column, DFSchemaRef};
 #[allow(unused_imports)]
 use datafusion::logical_expr::aggregate_function;
@@ -66,25 +67,11 @@ fn query_to_sql(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast::St
             let mut relation_builder = RelationBuilder::default();
             select_to_sql(
                 plan,
-                &mut query_builder,
-                &mut select_builder,
-                &mut relation_builder,
+                query_builder,
+                select_builder,
+                relation_builder,
                 dialect,
-            )?;
-
-            let mut twj = select_builder.pop_from().unwrap();
-            twj.relation(relation_builder);
-            select_builder.push_from(twj);
-
-            let body = ast::SetExpr::Select(Box::new(
-                select_builder.build().map_err(builder_error_to_df)?,
-            ));
-            let query = query_builder
-                .body(Box::new(body))
-                .build()
-                .map_err(builder_error_to_df)?;
-
-            Ok(ast::Statement::Query(Box::new(query)))
+            )
         }
         LogicalPlan::Dml(_) => dml_to_sql(plan),
         LogicalPlan::Explain(_)
@@ -100,13 +87,33 @@ fn query_to_sql(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast::St
     }
 }
 
+fn finalize_builders(
+    mut query: QueryBuilder,
+    mut select: SelectBuilder,
+    relation: RelationBuilder,
+) -> Result<ast::Statement>{
+    let mut twj = select.pop_from().unwrap();
+    twj.relation(relation);
+    select.push_from(twj);
+
+    let body = ast::SetExpr::Select(Box::new(
+        select.build().map_err(builder_error_to_df)?,
+    ));
+    let query = query
+        .body(Box::new(body))
+        .build()
+        .map_err(builder_error_to_df)?;
+
+    Ok(ast::Statement::Query(Box::new(query)))
+}
+
 fn select_to_sql(
     plan: &LogicalPlan,
-    query: &mut QueryBuilder,
-    select: &mut SelectBuilder,
-    relation: &mut RelationBuilder,
+    mut query: QueryBuilder,
+    mut select: SelectBuilder,
+    mut relation: RelationBuilder,
     dialect: Arc<dyn Dialect>,
-) -> Result<()> {
+) -> Result<ast::Statement> {
     match plan {
         LogicalPlan::TableScan(scan) => {
             let mut builder = TableRelationBuilder::default();
@@ -116,7 +123,7 @@ fn select_to_sql(
             )]));
             relation.table(builder);
 
-            Ok(())
+            finalize_builders(query, select, relation)
         }
         LogicalPlan::Projection(p) => {
             let items = p
@@ -124,9 +131,30 @@ fn select_to_sql(
                 .iter()
                 .map(|e| select_item_to_sql(e, p.input.schema(), 0, dialect.clone()).unwrap())
                 .collect::<Vec<_>>();
-            select.projection(items);
 
-            select_to_sql(p.input.as_ref(), query, select, relation, dialect.clone())
+            // A second projection implies a derived tablefactor
+            if !select.already_projected(){
+                select.projection(items);
+                select_to_sql(p.input.as_ref(), query, select, relation, dialect.clone())
+            } else{
+                let mut derived_builder = DerivedRelationBuilder::default();
+                derived_builder
+                    .lateral(false)
+                    .alias(None)
+                    .subquery(
+                        {
+                            let inner_statment = query_to_sql(&plan, dialect.clone())?;
+                            if let ast::Statement::Query(inner_query) = inner_statment{
+                                inner_query
+                            } else{
+                                return internal_err!("Subquery must be a Query, but found {inner_statment:?}")
+                            }
+                        }
+                    );
+                relation.derived(derived_builder);
+                finalize_builders(query, select, relation)
+            }  
+            
         }
         LogicalPlan::Filter(filter) => {
             let filter_expr =
@@ -217,48 +245,47 @@ fn select_to_sql(
                 (None, Some(on)) => Some(on),
                 (None, None) => None,
             };
-            let join_constraint = match join_expr {
+            let _join_constraint = match join_expr {
                 Some(expr) => ast::JoinConstraint::On(expr),
                 None => ast::JoinConstraint::None,
             };
 
-            let mut right_relation = RelationBuilder::default();
+            return not_impl_err!("to do!")
 
-            select_to_sql(join.left.as_ref(), query, select, relation, dialect.clone())?;
-            select_to_sql(
-                join.right.as_ref(),
-                query,
-                select,
-                &mut right_relation,
-                dialect.clone(),
-            )?;
+            // let mut right_relation = RelationBuilder::default();
 
-            let ast_join = ast::Join {
-                relation: right_relation.build().map_err(builder_error_to_df)?,
-                join_operator: join_operator_to_sql(join.join_type, join_constraint),
-            };
-            let mut from = select.pop_from().unwrap();
-            from.push_join(ast_join);
-            select.push_from(from);
+            // let left_statement = select_to_sql(join.left.as_ref(), query, select, relation, dialect.clone())?;
+            // let right_statment = select_to_sql(
+            //     join.right.as_ref(),
+            //     query,
+            //     select,
+            //     right_relation,
+            //     dialect.clone(),
+            // )?;
 
-            Ok(())
+            // let ast_join = ast::Join {
+            //     relation: right_relation.build().map_err(builder_error_to_df)?,
+            //     join_operator: join_operator_to_sql(join.join_type, join_constraint),
+            // };
+            // let mut from = select.pop_from().unwrap();
+            // from.push_join(ast_join);
+            // select.push_from(from);
+
+            // finalize_builders(query, select, relation)
         }
         LogicalPlan::SubqueryAlias(plan_alias) => {
             // Handle bottom-up to allocate relation
+            relation.alias(Some(new_table_alias(
+                plan_alias.alias.table().to_string(),
+                dialect.clone(),
+            )));
             select_to_sql(
                 plan_alias.input.as_ref(),
                 query,
                 select,
                 relation,
                 dialect.clone(),
-            )?;
-
-            relation.alias(Some(new_table_alias(
-                plan_alias.alias.table().to_string(),
-                dialect.clone(),
-            )));
-
-            Ok(())
+            )
         }
         LogicalPlan::Union(_union) => {
             not_impl_err!("Unsupported operator: {plan:?}")
@@ -585,15 +612,22 @@ fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
 }
 
 fn col_to_sql(col: &Column, dialect: Arc<dyn Dialect>) -> Result<ast::Expr> {
-    Ok(ast::Expr::CompoundIdentifier(
-        [
-            col.relation.as_ref().unwrap().table().to_string(),
-            col.name.to_string(),
-        ]
-        .iter()
-        .map(|i| new_ident(i.to_string(), dialect.clone()))
-        .collect(),
-    ))
+    let expr = if let Some(relation) = &col.relation{
+        ast::Expr::CompoundIdentifier(
+            [
+                relation.table().to_string(),
+                col.name.to_string(),
+            ]
+            .iter()
+            .map(|i| new_ident(i.to_string(), dialect.clone()))
+            .collect()
+        )
+    } else{
+        ast::Expr::Identifier(new_ident(col.name.to_string(), dialect.clone()))
+    };
+    Ok(
+        expr
+    )
 }
 
 fn join_operator_to_sql(join_type: JoinType, constraint: ast::JoinConstraint) -> JoinOperator {

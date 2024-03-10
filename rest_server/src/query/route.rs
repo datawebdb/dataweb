@@ -152,7 +152,7 @@ async fn query(
     message_options: web::Data<MessageBrokerOptions>,
     local_fingerprint: web::Data<Arc<String>>,
     client_cert_header: web::Data<Option<String>>,
-    query: web::Json<RawQueryRequest>,
+    mut query: web::Json<RawQueryRequest>,
     req: HttpRequest,
 ) -> Result<impl Responder> {
     let (fingerprint, subject_dn, issuer_dn) =
@@ -190,7 +190,12 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    let (entity_name, statement) = validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
+    let (entity_name, statement, logical_schema) = validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
+    if query.return_arrow_schema.is_some(){
+        ()
+    } else{
+        query.return_arrow_schema = Some(logical_schema);
+    }
 
     debug!("Creating QueryRequest");
     let request = match create_query_request(

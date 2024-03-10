@@ -8,13 +8,15 @@ def validate_query1(df):
     assert n_sources==6, f'Query1 fail: expected data from 6 sources found {n_sources}'
     assert len(df.columns)==4, f'Query1 fail: expected 4 columns found {len(df.columns)}'
 
-def validate_query2(df):
+def validate_query2(df, expected_cols):
     assert len(df)==50003, f'Query2 fail: expected 50003 records found {len(df)}'
     n_relays = df['_source_relay_uri_'].nunique()
     n_sources = df['_source_id_'].nunique()
     assert n_relays==5, f'Query2 fail: expected data from 5 relays found {n_relays}'
     assert n_sources==6, f'Query2 fail: expected data from 6 sources found {n_sources}'
-    assert len(df.columns)==17, f'Query2 fail: expected 21 columns found {len(df.columns)}'
+    # Note expected_cols differs for flight and REST due to entirely NULL columns simply not
+    # existing in JSON vs. Arrow
+    assert len(df.columns)==expected_cols, f'Query2 fail: expected 17 columns found {len(df.columns)}'
 
 def validate_query4(df):
     assert len(df)==53, f'Query4 fail: expected 53 records found {len(df)}'

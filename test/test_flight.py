@@ -17,12 +17,12 @@ def test_flight_query1_na_us_data_relay():
 def test_flight_query2_na_data_relay():
     test_query2 = make_query2()
     df = execute_query(test_query2, 'localhost', 50055)
-    validate_query2(df)
+    validate_query2(df, 17)
     
 def test_flight_query2_na_us_data_relay():
     test_query2 = make_query2()
     df = execute_query(test_query2, 'localhost', 50054)
-    validate_query2(df)
+    validate_query2(df, 17)
 
 def test_flight_query3_na_data_relay():
     test_query3 = make_query3()

@@ -4,7 +4,7 @@ use ast_builder::DerivedRelationBuilder;
 use chrono::{NaiveDate, NaiveDateTime};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{JoinConstraint, JoinType, Like};
-use datafusion::sql::sqlparser::ast::{JoinOperator, OrderByExpr};
+use datafusion::sql::sqlparser::ast::{Function, FunctionArg, Ident, JoinOperator, OrderByExpr, SelectItem};
 use datafusion::{
     error::{DataFusionError, Result},
     scalar::ScalarValue,
@@ -16,7 +16,7 @@ use datafusion::common::{Column, DFSchemaRef};
 #[allow(unused_imports)]
 use datafusion::logical_expr::aggregate_function;
 use datafusion::logical_expr::expr::{
-    Alias, BinaryExpr, Case, Cast, InList, ScalarFunction as DFScalarFunction, WindowFunction,
+    AggregateFunctionDefinition, Alias, BinaryExpr, Case, Cast, InList, ScalarFunction as DFScalarFunction, WindowFunction
 };
 use datafusion::logical_expr::{Between, LogicalPlan, Operator};
 use datafusion::prelude::Expr;
@@ -39,7 +39,7 @@ pub fn from_df_plan(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast
 
 pub fn from_df_expr(expr: &Expr, dialect: Arc<dyn Dialect>) -> Result<SQLExpr> {
     let schema = DFSchema::empty();
-    expr_to_sql(expr, &Arc::new(schema), 0, dialect)
+    expr_to_sql(expr, dialect)
 }
 
 fn query_to_sql(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast::Statement> {
@@ -126,16 +126,54 @@ fn select_to_sql(
             finalize_builders(query, select, relation)
         }
         LogicalPlan::Projection(p) => {
-            let items = p
-                .expr
-                .iter()
-                .map(|e| select_item_to_sql(e, p.input.schema(), 0, dialect.clone()).unwrap())
-                .collect::<Vec<_>>();
-
             // A second projection implies a derived tablefactor
             if !select.already_projected(){
-                select.projection(items);
-                select_to_sql(p.input.as_ref(), query, select, relation, dialect.clone())
+                // Special handling when projecting an agregation plan
+                if let LogicalPlan::Aggregate(agg) = p.input.as_ref(){
+                    // Currently assuming projection is always group bys first, then aggregations
+                    let n_group_bys = agg.group_expr.len();
+                    let mut items = p.expr
+                        .iter()
+                        .take(n_group_bys)
+                        .map(|e| select_item_to_sql(e, p.input.schema(), 0, dialect.clone()))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    let proj_aggs = p.expr
+                        .iter()
+                        .skip(n_group_bys)
+                        .zip(agg.aggr_expr.iter())
+                        .map(|(proj, agg_exp)| {
+                            let sql_agg_expr = select_item_to_sql(agg_exp, p.input.schema(), 0, dialect.clone())?;
+                            let maybe_aliased = if let Expr::Alias(Alias { name, .. }) = proj{
+                                if let SelectItem::UnnamedExpr(aggregation_fun) = sql_agg_expr{
+                                    SelectItem::ExprWithAlias { expr: aggregation_fun, alias: Ident{value: name.to_string(), quote_style: None} }
+                                } else{
+                                    sql_agg_expr
+                                }
+                            } else{
+                                sql_agg_expr
+                            };
+                            Ok(maybe_aliased)
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    items.extend(proj_aggs);
+                    select.projection(items);
+                    select.group_by(ast::GroupByExpr::Expressions(
+                        agg.group_expr.iter()
+                            .map(|expr| expr_to_sql(expr, dialect.clone()))
+                            .collect::<Result<Vec<_>>>()?
+                    ));
+                    select_to_sql(agg.input.as_ref(), query, select, relation, dialect.clone())
+                }
+                else{
+                    let items = p
+                        .expr
+                        .iter()
+                        .map(|e| select_item_to_sql(e, p.input.schema(), 0, dialect.clone()))
+                        .collect::<Result<Vec<_>>>()?;
+                    select.projection(items);
+                    select_to_sql(p.input.as_ref(), query, select, relation, dialect.clone())
+                }
             } else{
                 let mut derived_builder = DerivedRelationBuilder::default();
                 derived_builder
@@ -158,7 +196,7 @@ fn select_to_sql(
         }
         LogicalPlan::Filter(filter) => {
             let filter_expr =
-                expr_to_sql(&filter.predicate, filter.input.schema(), 0, dialect.clone())?;
+                expr_to_sql(&filter.predicate, dialect.clone())?;
 
             select.selection(Some(filter_expr));
 
@@ -202,11 +240,11 @@ fn select_to_sql(
                 dialect.clone(),
             )
         }
-        LogicalPlan::Aggregate(_agg) => {
-            not_impl_err!("Unsupported operator: {plan:?}")
+        LogicalPlan::Aggregate(agg) => {
+            not_impl_err!("Unsupported aggregation plan not following a projection: {plan:?}")
         }
         LogicalPlan::Distinct(_distinct) => {
-            not_impl_err!("Unsupported operator: {plan:?}")
+            not_impl_err!("Unsupported Distinct plan: {plan:?}")
         }
         LogicalPlan::Join(join) => {
             match join.join_constraint {
@@ -221,8 +259,6 @@ fn select_to_sql(
             let join_filter = match &join.filter {
                 Some(filter) => Some(expr_to_sql(
                     filter,
-                    &Arc::new(in_join_schema),
-                    0,
                     dialect.clone(),
                 )?),
                 None => None,
@@ -306,7 +342,7 @@ fn select_item_to_sql(
 ) -> Result<ast::SelectItem> {
     match expr {
         Expr::Alias(Alias { expr, name, .. }) => {
-            let inner = expr_to_sql(expr, schema, col_ref_offset, dialect.clone())?;
+            let inner = expr_to_sql(expr, dialect.clone())?;
 
             Ok(ast::SelectItem::ExprWithAlias {
                 expr: inner,
@@ -314,7 +350,7 @@ fn select_item_to_sql(
             })
         }
         _ => {
-            let inner = expr_to_sql(expr, schema, col_ref_offset, dialect.clone())?;
+            let inner = expr_to_sql(expr, dialect.clone())?;
 
             Ok(ast::SelectItem::UnnamedExpr(inner))
         }
@@ -323,8 +359,6 @@ fn select_item_to_sql(
 
 fn expr_to_sql(
     expr: &Expr,
-    _schema: &DFSchemaRef,
-    _col_ref_offset: usize,
     dialect: Arc<dyn Dialect>,
 ) -> Result<SQLExpr> {
     match expr {
@@ -348,8 +382,8 @@ fn expr_to_sql(
         }
         Expr::Column(col) => col_to_sql(col, dialect.clone()),
         Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
-            let l = expr_to_sql(left.as_ref(), _schema, 0, dialect.clone())?;
-            let r = expr_to_sql(right.as_ref(), _schema, 0, dialect.clone())?;
+            let l = expr_to_sql(left.as_ref(), dialect.clone())?;
+            let r = expr_to_sql(right.as_ref(), dialect.clone())?;
             let op = op_to_sql(op)?;
 
             // Nested ensures order is perseved as specified in the LogicalPlan Expression tree vs
@@ -365,12 +399,12 @@ fn expr_to_sql(
             not_impl_err!("Unsupported Case expression: {expr:?}")
         }
         Expr::Cast(Cast { expr, data_type }) => {
-            let inner_expr = expr_to_sql(expr.as_ref(), _schema, 0, dialect.clone())?;
+            let inner_expr = expr_to_sql(expr.as_ref(), dialect.clone())?;
             Ok(SQLExpr::Cast { expr: Box::new(inner_expr), data_type: df_to_sql_data_type(data_type)?, format: None })
         },
         Expr::Literal(value) => Ok(scalar_to_sql(value)?),
         Expr::Alias(Alias { expr, name: _, .. }) => {
-            expr_to_sql(expr, _schema, _col_ref_offset, dialect.clone())
+            expr_to_sql(expr, dialect.clone())
         }
         Expr::WindowFunction(WindowFunction {
             fun: _,
@@ -405,7 +439,37 @@ fn expr_to_sql(
         Expr::GetIndexedField(_) => not_impl_err!("Unsupported GetIndexedField expression: {expr:?}"),
         Expr::TryCast(_) => not_impl_err!("Unsupported TryCast expression: {expr:?}"),
         Expr::Sort(_) => not_impl_err!("Unsupported Sort expression: {expr:?}"),
-        Expr::AggregateFunction(_) => not_impl_err!("Unsupported AggregateFunction expression: {expr:?}"),
+        Expr::AggregateFunction(agg) => {
+            let func_name = if let AggregateFunctionDefinition::BuiltIn(built_in) = &agg.func_def{
+                built_in.name()
+            } else{
+                return not_impl_err!("Only built in agg functions are supported, got {agg:?}");
+            };
+
+            let args = agg.args
+                .iter()
+                .map(|e| {
+                    if matches!(e, Expr::Wildcard { qualifier: None }){
+                        Ok(FunctionArg::Unnamed(ast::FunctionArgExpr::Wildcard))
+                    } else{
+                        expr_to_sql(e, dialect.clone()).map(|e| {
+                            FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))
+                        })
+                    }  
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(SQLExpr::Function(Function{
+                name: ast::ObjectName(vec![Ident{ value: func_name.to_string(), quote_style: None}]),
+                args,
+                filter: None,
+                null_treatment: None,
+                over: None,
+                distinct: false,
+                special: false,
+                order_by: vec![],
+            }))
+        },
         Expr::Exists(_) => not_impl_err!("Unsupported Exists expression: {expr:?}"),
         Expr::InSubquery(_) => not_impl_err!("Unsupported InSubquery expression: {expr:?}"),
         Expr::ScalarSubquery(_) => not_impl_err!("Unsupported ScalarSubquery expression: {expr:?}"),
@@ -466,7 +530,7 @@ fn sort_to_sql(
         .iter()
         .map(|expr: &Expr| match expr {
             Expr::Sort(sort_expr) => {
-                let col = expr_to_sql(&sort_expr.expr, _schema, _col_ref_offset, dialect.clone())?;
+                let col = expr_to_sql(&sort_expr.expr, dialect.clone())?;
                 Ok(OrderByExpr {
                     asc: Some(sort_expr.asc),
                     expr: col,
@@ -654,12 +718,10 @@ fn join_conditions_to_sql(
     let mut exprs: Vec<SQLExpr> = vec![];
     for (left, right) in join_conditions {
         // Parse left
-        let l = expr_to_sql(left, left_schema, 0, dialect.clone())?;
+        let l = expr_to_sql(left, dialect.clone())?;
         // Parse right
         let r = expr_to_sql(
             right,
-            right_schema,
-            left_schema.fields().len(), // offset to return the correct index
             dialect.clone(),
         )?;
         // AND with existing expression

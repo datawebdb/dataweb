@@ -177,15 +177,12 @@ async fn execute_stream(client: Arc<Client>, query: Query) -> Result<SendableRec
     let schema_clone = schema.clone();
     let rb_stream = peekable.map(move |data| match data {
         Ok(d) => {
-            debug!("trino raw row: {:?}", &d.as_slice()[..5]);
             let ndjson = trino_dataset_to_ndjson(d, schema_clone.clone());
-            debug!("trino json value row: {:?}", &ndjson[..5]);
             let mut decoder = ReaderBuilder::new(schema_clone.clone()).build_decoder()?;
             decoder.serialize(&ndjson)?;
             let rb = decoder.flush()?.ok_or(DataFusionError::Execution(
                 "Got empty batch from trino!".to_string(),
             ))?;
-            debug!("trino recordbatch: {:?}",rb.slice(0, 5));
             Ok(rb)
         }
         Err(e) => Err(e),

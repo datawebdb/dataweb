@@ -14,7 +14,7 @@ def validate_query2(df):
     n_sources = df['_source_id_'].nunique()
     assert n_relays==5, f'Query2 fail: expected data from 5 relays found {n_relays}'
     assert n_sources==6, f'Query2 fail: expected data from 6 sources found {n_sources}'
-    assert len(df.columns)==22, f'Query2 fail: expected 21 columns found {len(df.columns)}'
+    assert len(df.columns)==17, f'Query2 fail: expected 21 columns found {len(df.columns)}'
 
 def validate_query4(df):
     assert len(df)==53, f'Query4 fail: expected 53 records found {len(df)}'

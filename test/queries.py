@@ -16,7 +16,7 @@ def make_query3():
 def make_query4():
     # In the case we need to include {} in literal filters, we can increase the num_capture_braces so the template is unambiguous
     return {'sql':
-    "select linenumber, tax_percent from lineitem where tax_val>3 and '{tax_val}'='{tax_val}'  limit 10",
+    "select linenumber, tax_percent from lineitem where tax_percent>3 and '{tax_val}'='{tax_val}'  limit 10",
   }
 
 def make_tpch_q1_query():

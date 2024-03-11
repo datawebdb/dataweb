@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, fmt, sync::Arc};
+use std::{any::Any, fmt, sync::Arc};
 
 use arrow::datatypes::SchemaRef;
 use arrow_flight::{FlightDescriptor, FlightEndpoint, FlightInfo, Ticket};
@@ -30,7 +30,6 @@ use crate::{
 pub struct EntityScanRequest {
     /// A Sql template string, e.g. "select {info} from {entity}"
     pub sql: String,
-    pub substitution_blocks: SubstitutionBlocks,
     pub return_arrow_schema: Option<Arc<Schema>>,
 }
 
@@ -45,34 +44,6 @@ impl TryFrom<EntityScanRequest> for bytes::Bytes {
         })?;
         Ok(bytes::Bytes::from_iter(js))
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SubstitutionBlocks {
-    pub info_substitutions: HashMap<String, InfoSubstitution>,
-    pub source_substitutions: HashMap<String, SourceSubstitution>,
-    pub num_capture_braces: usize,
-}
-
-/// A portion of a SQL template expressed in terms of local Information that can be substituted
-/// into DataField paths. E.g. select {user_name} from {table} may be converted into
-/// select user.full_name from {table} for a table containing a field path user.full_name mapped to
-/// the specified local Information.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct InfoSubstitution {
-    pub entity_name: String,
-    pub info_name: String,
-    pub include_info: bool,
-    pub exclude_info_alias: bool,
-    pub include_data_field: bool,
-}
-
-/// Used to substitute in table identifiers into a SQL template. Each Relay also applies
-/// relevant access controls
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum SourceSubstitution {
-    /// Infer all available sources which contain Information on any of the referenced Entities
-    AllSourcesWith(Vec<String>),
 }
 
 /// Implements a DataFusion [TableProvider] for a given Entity in the DataWeb.
@@ -133,48 +104,25 @@ impl TableProvider for DataWebEntity {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let projected_schema = project_schema(&self.schema, projection)?;
 
-        let mut substitution_blocks = SubstitutionBlocks {
-            info_substitutions: HashMap::new(),
-            source_substitutions: HashMap::new(),
-            num_capture_braces: 1,
-        };
+        let proj_str = map_projection(&self.entity_name, projected_schema.clone());
 
-        let proj_str = map_projection(
-            &self.entity_name,
-            projected_schema.clone(),
-            &mut substitution_blocks.info_substitutions,
-        );
-
-        let filter_str = map_filter_exprs(
-            &self.entity_name,
-            filters,
-            &mut substitution_blocks.info_substitutions,
-        );
+        let filter_str = map_filter_exprs(&self.entity_name, filters);
 
         let template = if let Some(l) = limit {
             format!(
-                "select {proj_str} from {{{}}} {filter_str} limit {l}",
+                "select {proj_str} from {} {filter_str} limit {l}",
                 self.entity_name
             )
         } else {
-            format!(
-                "select {proj_str} from {{{}}} {filter_str}",
-                self.entity_name
-            )
+            format!("select {proj_str} from {} {filter_str}", self.entity_name)
         };
-
-        substitution_blocks.source_substitutions.insert(
-            self.entity_name.clone(),
-            SourceSubstitution::AllSourcesWith(vec![self.entity_name.clone()]),
-        );
 
         let entity_scan_req = EntityScanRequest {
             sql: template,
-            substitution_blocks,
             return_arrow_schema: Some(projected_schema.clone()),
         };
 
-        debug!("Created template: {:?}", entity_scan_req);
+        debug!("Created request: {:?}", entity_scan_req);
 
         // For large (particularly deep) webs this request could be slow, as our request
         // must propagate to every relay in the web, and back again. If the average latency
@@ -198,18 +146,15 @@ impl TableProvider for DataWebEntity {
         &self,
         filters: &[&Expr],
     ) -> Result<Vec<TableProviderFilterPushDown>> {
-        let mut info_subs = HashMap::new();
         Ok(filters
             .iter()
-            .map(
-                |f| match filter_expr_to_sql(&self.entity_name, f, &mut info_subs) {
-                    Ok(_) => TableProviderFilterPushDown::Exact,
-                    Err(e) => {
-                        error!("Got unsupported filter expr {e}");
-                        TableProviderFilterPushDown::Unsupported
-                    }
-                },
-            )
+            .map(|f| match filter_expr_to_sql(&self.entity_name, f) {
+                Ok(_) => TableProviderFilterPushDown::Exact,
+                Err(e) => {
+                    error!("Got unsupported filter expr {e}");
+                    TableProviderFilterPushDown::Unsupported
+                }
+            })
             .collect())
     }
 }

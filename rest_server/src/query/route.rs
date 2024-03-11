@@ -6,9 +6,8 @@ use mesh::error::MeshError;
 
 use mesh::execute::utils::{
     create_query_request, map_and_create_local_tasks, map_and_create_remote_tasks,
-    verify_query_origination_information,
+    validate_sql_and_logical_round_trip, verify_query_origination_information,
 };
-use mesh::execute::validation::validate_sql_template;
 
 use tracing::{debug, info};
 
@@ -153,7 +152,7 @@ async fn query(
     message_options: web::Data<MessageBrokerOptions>,
     local_fingerprint: web::Data<Arc<String>>,
     client_cert_header: web::Data<Option<String>>,
-    query: web::Json<RawQueryRequest>,
+    mut query: web::Json<RawQueryRequest>,
     req: HttpRequest,
 ) -> Result<impl Responder> {
     let (fingerprint, subject_dn, issuer_dn) =
@@ -191,7 +190,11 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    validate_sql_template(&query.0)?;
+    let (entity_name, statement, logical_schema) =
+        validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
+    if query.return_arrow_schema.is_none() {
+        query.return_arrow_schema = Some(logical_schema);
+    }
 
     debug!("Creating QueryRequest");
     let request = match create_query_request(
@@ -217,7 +220,9 @@ async fn query(
 
     debug!("Mapping QueryRequest to local queries");
     let created_tasks = map_and_create_local_tasks(
+        &statement,
         &query,
+        &entity_name,
         &request,
         &mut db,
         &direct_requester,
@@ -228,7 +233,9 @@ async fn query(
     debug!("Mapping QueryRequest to remote queries");
     let created_remote_tasks = map_and_create_remote_tasks(
         &query,
+        &statement,
         &request,
+        &entity_name,
         &mut db,
         requesting_user,
         originating_relay,

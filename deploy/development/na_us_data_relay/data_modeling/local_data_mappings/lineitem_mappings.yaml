@@ -27,13 +27,11 @@ spec:
             info: discount_percent
             transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
           - field: tax
             info: tax_percent
             transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
           - field: commitdate
             info: commitdate
@@ -69,13 +67,11 @@ spec:
             info: discount_percent
             transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
           - field: tax
             info: tax_percent
             transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
           - field: returnflag
             info: returnflag

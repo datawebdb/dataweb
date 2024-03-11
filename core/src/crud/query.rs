@@ -3,7 +3,7 @@ use crate::model::{
     data_stores::{DataConnection, DataSource},
     query::{
         FlightStream, NewFlightStream, NewQueryTask, QueryOriginationInfo, QueryRequest, QueryTask,
-        QueryTaskRemote, QueryTaskRemoteStatus, QueryTaskStatus, SubstitutionBlocks,
+        QueryTaskRemote, QueryTaskRemoteStatus, QueryTaskStatus,
     },
     relay::Relay,
 };
@@ -24,7 +24,6 @@ impl<'a> PgDb<'a> {
         relay_id_val: &Uuid,
         originator_request_id_val: &Uuid,
         sql_val: &str,
-        blocks: &SubstitutionBlocks,
         origin_info_val: &QueryOriginationInfo,
     ) -> Result<QueryRequest> {
         use schema::query_request::dsl::*;
@@ -34,7 +33,6 @@ impl<'a> PgDb<'a> {
                 relay_id.eq(relay_id_val),
                 sql.eq(sql_val),
                 originator_request_id.eq(originator_request_id_val),
-                substitution_blocks.eq(blocks),
                 origin_info.eq(origin_info_val),
             ))
             .get_result(&mut self.con)

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::{mappings::Transformation, query::SubstitutionBlocks};
+use crate::model::mappings::Transformation;
 
-use super::{default_false, no_entitymap, no_transformation};
+use super::no_transformation;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RemoteMappingsDeclaration {
@@ -14,25 +14,21 @@ pub struct RemoteMappingsDeclaration {
 pub struct PeerRelayMappingsDeclaration {
     pub relay_name: String,
     pub remote_entity_name: String,
-    #[serde(default = "no_entitymap")]
-    pub entity_map: Option<EntityMapDecl>,
+    #[serde(default = "no_entity_map_sql")]
+    pub sql: Option<String>,
     pub relay_mappings: Vec<RemoteInfoMappingsDeclaration>,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct EntityMapDecl {
-    pub sql: String,
-    pub substitution_blocks: SubstitutionBlocks,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RemoteInfoMappingsDeclaration {
     pub local_info: String,
     pub info_mapped_name: String,
-    #[serde(default = "default_false")]
-    pub literal_derived_field: bool,
     #[serde(default = "no_transformation")]
     pub transformation: Transformation,
+}
+
+fn no_entity_map_sql() -> Option<String> {
+    None
 }
 
 pub type ResolvedRemoteMappingsDeclaration = RemoteMappingsDeclaration;

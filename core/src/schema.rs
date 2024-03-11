@@ -94,7 +94,6 @@ diesel::table! {
         sql -> Varchar,
         relay_id -> Uuid,
         origin_info -> Jsonb,
-        substitution_blocks -> Jsonb,
     }
 }
 
@@ -149,11 +148,9 @@ diesel::table! {
     remote_entity_mapping (id) {
         id -> Uuid,
         sql -> Varchar,
-        substitution_blocks -> Jsonb,
         relay_id -> Uuid,
         entity_id -> Uuid,
         remote_entity_name -> Varchar,
-        needs_subquery_transformation -> Bool,
     }
 }
 
@@ -163,7 +160,6 @@ diesel::table! {
         remote_entity_mapping_id -> Uuid,
         information_id -> Uuid,
         info_mapped_name -> Varchar,
-        literal_derived_field -> Bool,
         transformation -> Jsonb,
     }
 }

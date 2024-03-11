@@ -1,115 +1,59 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::Result;
 use crate::execute::{request_to_local_queries, request_to_remote_requests};
 
-use crate::model::mappings::{RemoteEntityMapping, Transformation};
+use crate::model::entity::Information;
 use crate::model::query::{
-    NewQueryTask, OriginatorEntityMapping, OriginatorInfoMapping, OriginatorMappings,
-    QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote, QueryTaskRemoteStatus,
-    QueryTaskStatus, RawQueryRequest, ScopedOriginatorMappings, SubstitutionBlocks,
+    NewQueryTask, QueryOriginationInfo, QueryRequest, QueryTask, QueryTaskRemote,
+    QueryTaskRemoteStatus, QueryTaskStatus, RawQueryRequest,
 };
 use crate::model::relay::Relay;
 use crate::model::user::{NewUser, User, UserAttributes};
 use crate::{crud::PgDb, error::MeshError};
 
+use arrow_schema::{Field, Schema, SchemaBuilder, SchemaRef};
+use datafusion::sql::sqlparser::ast::Statement;
 use tracing::debug;
 use uuid::Uuid;
 
+use super::planning::EntityContext;
+use super::validation::{logical_round_trip, validate_sql};
 use super::Requester;
 
-/// Helper function which substitutes in a subquery template in place of a
-/// [SourceSubstitution][crate::model::query::SourceSubstitution]
-/// which maps a remote [Entity][crate::model::entity::Entity] to a local one. Local
-/// [Information][crate::model::entity::Information] may need to be derived from multiple
-/// remote informations, or even via aggregations or joins involving multiple remote informations.
-/// This is analgous to substituting a subquery into a fully formed SQL statement in place of a
-/// table identifier. Since this function deals with substituting a template into another template,
-/// it must deal with the potential of conflicting substitution keys or number of capture braces.
-pub fn compose_derived_source_substitution(
-    mut original_sql: String,
-    in_blocks: &SubstitutionBlocks,
-    left_capture: &String,
-    right_capture: &String,
-    sub_into_pattern: String,
-    entity_map: &RemoteEntityMapping,
-    out_blocks: &mut SubstitutionBlocks,
-) -> (String, Option<ScopedOriginatorMappings>) {
-    let mut sub_sql = entity_map.sql.clone();
-    let sub_blocks = entity_map.substitution_blocks.clone();
-    let sub_left_capture = "{".repeat(sub_blocks.num_capture_braces);
-    let sub_right_capture = "}".repeat(sub_blocks.num_capture_braces);
-    let different_num_capture_braces =
-        in_blocks.num_capture_braces != sub_blocks.num_capture_braces;
+/// Uses datafusion to logically plan and optimize the [Statement], ultimately converting back to
+/// a [Statement] which has alias names resolved, columns fully qualified, expressions simplified and more.
+pub async fn validate_sql_and_logical_round_trip(
+    sql: &str,
+    db: &mut PgDb<'_>,
+) -> Result<(String, Statement, Schema)> {
+    debug!("Parsing SQL to statement: {sql}");
+    let (entity_name, statement) = validate_sql(sql)?;
+    debug!("pre round trip statement: {statement}");
+    let context = create_planning_context(&entity_name, db).await?;
+    let (statement, schema) = logical_round_trip(statement, context)?;
+    debug!("post round trip statement: {statement}");
+    Ok((entity_name, statement, schema))
+}
 
-    let new_scope = Uuid::new_v4().to_string();
-    let mut remote_as_originator_mappings = OriginatorEntityMapping {
-        originator_entity_name: entity_map.remote_entity_name.clone(),
-        originator_info_map: HashMap::new(),
-    };
-    let mut new_info_subs = HashMap::with_capacity(sub_blocks.info_substitutions.len());
-    for (key, mut sub) in sub_blocks.info_substitutions.into_iter() {
-        sub.scope = new_scope.clone();
-        remote_as_originator_mappings.originator_info_map.insert(
-            sub.info_name.clone(),
-            OriginatorInfoMapping {
-                originator_info_name: sub.info_name.clone(),
-                transformation: Transformation {
-                    other_to_local_info: "{v}".to_string(),
-                    local_info_to_other: "{v}".to_string(),
-                    replace_from: "{v}".to_string(),
-                },
-            },
-        );
-        if different_num_capture_braces
-            || in_blocks.info_substitutions.contains_key(&key)
-            || in_blocks.source_substitutions.contains_key(&key)
-        {
-            let new_key = Uuid::new_v4();
-            let new_pattern = format!("{left_capture}{new_key}{right_capture}");
-            let old_pattern = format!("{sub_left_capture}{key}{sub_right_capture}");
-            sub_sql = sub_sql.replace(&old_pattern, &new_pattern);
+pub async fn create_planning_context(
+    entity_name: &str,
+    db: &mut PgDb<'_>,
+) -> Result<EntityContext> {
+    let entity = db.get_entity(entity_name).await?;
+    let information = db.get_information_for_entity(entity.id).await?;
+    let schema = information_to_schema(information);
+    let context_provider = EntityContext::new(entity_name, schema);
+    Ok(context_provider)
+}
 
-            new_info_subs.insert(new_key.to_string(), sub);
-        } else {
-            new_info_subs.insert(key, sub);
-        }
+/// Converts a Vec of [Information] to an arrow [SchemaRef]
+pub fn information_to_schema(information: Vec<Information>) -> SchemaRef {
+    let mut schema_builder = SchemaBuilder::new();
+    for info in information {
+        schema_builder.push(Field::new(info.name, info.arrow_dtype.inner, true));
     }
-
-    let mut new_source_subs = HashMap::with_capacity(sub_blocks.source_substitutions.len());
-    for (key, sub) in sub_blocks.source_substitutions.into_iter() {
-        if different_num_capture_braces {
-            let new_key = Uuid::new_v4();
-            let new_pattern = format!("{left_capture}{new_key}{right_capture}");
-            let old_pattern = format!("{sub_left_capture}{key}{sub_right_capture}");
-            sub_sql = sub_sql.replace(&old_pattern, &new_pattern);
-            new_source_subs.insert(new_key.to_string(), sub);
-        } else {
-            new_source_subs.insert(key, sub);
-        }
-    }
-
-    let replacement = format!("({})", sub_sql);
-    original_sql = original_sql.replace(sub_into_pattern.as_str(), replacement.as_str());
-
-    out_blocks.info_substitutions.extend(new_info_subs);
-    out_blocks.source_substitutions.extend(new_source_subs);
-
-    let scoped_mappings = if remote_as_originator_mappings.originator_info_map.is_empty() {
-        None
-    } else {
-        let originator_mappings = OriginatorMappings {
-            inner: HashMap::from_iter(vec![(
-                entity_map.remote_entity_name.clone(),
-                remote_as_originator_mappings,
-            )]),
-        };
-        Some(ScopedOriginatorMappings {
-            inner: HashMap::from_iter(vec![(new_scope, originator_mappings)]),
-        })
-    };
-    (original_sql, scoped_mappings)
+    Arc::new(schema_builder.finish())
 }
 
 /// Inspects a [RawQueryRequest] along with the validated x509 certificate fingerprint
@@ -207,7 +151,6 @@ pub async fn create_query_request(
                     &requesting_relay.id,
                     orig_req_id,
                     &query.sql,
-                    &query.substitution_blocks,
                     &origin_info,
                 )
                 .await?)
@@ -225,7 +168,6 @@ pub async fn create_query_request(
                     &originating_relay.id,
                     &local_req_id,
                     &query.sql,
-                    &query.substitution_blocks,
                     &origin_info,
                 )
                 .await?)
@@ -236,13 +178,23 @@ pub async fn create_query_request(
 /// Helper function that maps a [RawQueryRequest] to [Querys][crate::model::query::Query] for all relevant local
 /// data sources and stores the needed info in the database as [QueryTasks][crate::model::query::QueryTask].
 pub async fn map_and_create_local_tasks(
-    query: &RawQueryRequest,
+    query: &Statement,
+    raw_request: &RawQueryRequest,
+    entity_name: &str,
     request: &QueryRequest,
     db: &mut PgDb<'_>,
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<QueryTask>> {
-    let queries = request_to_local_queries(db, query, direct_requester, requesting_user).await?;
+    let queries = request_to_local_queries(
+        db,
+        query,
+        entity_name,
+        raw_request,
+        direct_requester,
+        requesting_user,
+    )
+    .await?;
     debug!("Creating {} local tasks!", queries.len());
     let mut tasks = Vec::with_capacity(queries.len());
     for (data_source_id, q) in queries {
@@ -260,15 +212,19 @@ pub async fn map_and_create_local_tasks(
 /// Helper function that maps a [RawQueryRequest] to [Querys][crate::model::query::Query] for all relevant local
 /// data sources and stores the needed info in the database as [RemoteQueryTasks][crate::model::query::Query].
 pub async fn map_and_create_remote_tasks(
-    query: &RawQueryRequest,
+    raw_request: &RawQueryRequest,
+    query: &Statement,
     request: &QueryRequest,
+    entity_name: &str,
     db: &mut PgDb<'_>,
     requesting_user: User,
     originating_relay: Relay,
 ) -> Result<Vec<QueryTaskRemote>> {
     let remote_requests = request_to_remote_requests(
         db,
+        raw_request,
         query,
+        entity_name,
         &request.originator_request_id,
         originating_relay,
         requesting_user,

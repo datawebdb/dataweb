@@ -15,30 +15,24 @@ def test_rest_query1_na_us_data_relay():
 def test_rest_query2_na_data_relay():
     test_rest_query2 = make_query2()
     df = execute_query(test_rest_query2, 'https://localhost:8447', expected_len=50003)
-    validate_query2(df)
+    validate_query2(df, 15)
 
 def test_rest_query2_na_us_data_relay():
     test_rest_query2 = make_query2()
     df = execute_query(test_rest_query2, 'https://localhost:8446', expected_len=50003)
-    validate_query2(df)
+    validate_query2(df, 15)
 
 
 def test_rest_query3_na_data_relay():
     test_rest_query = make_query3()
     r = submit_query(test_rest_query, 'https://localhost:8447')
-    expected = 'Relay server error: invalid query: Found table identifier "{user_tables}" ' + \
-         'which is neither an in scope table alias nor a SourceSubstitution. ' +\
-         'Specifying table names directly is not allowed. Use an explicit ' +\
-         'SourceList within a SourceSubstitution instead.'
+    expected = 'Relay server error: invalid query: There must be exactly one entity per query.'
     assert(r.text==expected)
 
 def test_rest_query3_na_us_data_relay():
     test_rest_query = make_query3()
     r = submit_query(test_rest_query, 'https://localhost:8447')
-    expected = 'Relay server error: invalid query: Found table identifier "{user_tables}" ' + \
-         'which is neither an in scope table alias nor a SourceSubstitution. ' +\
-         'Specifying table names directly is not allowed. Use an explicit ' +\
-         'SourceList within a SourceSubstitution instead.'
+    expected = 'Relay server error: invalid query: There must be exactly one entity per query.'
     assert(r.text==expected)
 
 def test_rest_query4_na_data_relay():

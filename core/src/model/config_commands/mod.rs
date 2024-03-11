@@ -5,7 +5,7 @@ use self::{
     local_data::{DataConnectionsDeclaration, ResolvedDataConnectionsDeclaration},
     local_mapping::{LocalMappingDeclaration, ResolvedLocalMappingDeclaration},
     relay::{PeerRelayDeclaration, ResolvedPeerRelayDeclaration},
-    remote_mapping::{EntityMapDecl, RemoteMappingsDeclaration, ResolvedRemoteMappingsDeclaration},
+    remote_mapping::{RemoteMappingsDeclaration, ResolvedRemoteMappingsDeclaration},
     user::{PermissionsDecl, ResolvedUserDeclaration, UserDeclaration},
 };
 
@@ -97,18 +97,9 @@ pub(crate) fn empty_permission() -> DefaultPermissionDeclaration {
     }
 }
 
-pub(crate) fn no_entitymap() -> Option<EntityMapDecl> {
-    None
-}
-
 pub(crate) fn no_transformation() -> Transformation {
     Transformation {
         other_to_local_info: "{value}".to_string(),
-        local_info_to_other: "{value}".to_string(),
         replace_from: "{value}".to_string(),
     }
-}
-
-pub(crate) fn default_false() -> bool {
-    false
 }

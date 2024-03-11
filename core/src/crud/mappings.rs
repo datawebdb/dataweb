@@ -20,10 +20,13 @@ use uuid::Uuid;
 use super::PgDb;
 
 impl<'a> PgDb<'a> {
-    pub async fn create_mapping(&mut self, vals: &Vec<Mapping>) -> Result<()> {
+    pub async fn upsert_local_mapping(&mut self, val: &Mapping) -> Result<()> {
         use schema::field_mappings::dsl::*;
         insert_into(field_mappings)
-            .values(vals)
+            .values(val)
+            .on_conflict((information_id, data_field_id))
+            .do_update()
+            .set(val)
             .execute(&mut self.con)
             .await?;
         Ok(())
@@ -87,6 +90,7 @@ impl<'a> PgDb<'a> {
         use schema::field_mappings::dsl as map;
 
         use schema::entities::dsl as entity;
+        use schema::information::dsl as information;
 
         let rows: Vec<(
             DataConnection,
@@ -100,7 +104,11 @@ impl<'a> PgDb<'a> {
             .inner_join(map::field_mappings.inner_join(
                 field::data_field.inner_join(source::data_source.inner_join(conn::data_connection)),
             ))
-            .filter(entity::name.eq_any(entity_name_vals))
+            .filter(
+                entity::name
+                    .eq_any(entity_name_vals)
+                    .and(information::id.eq(map::information_id)),
+            )
             .select((
                 DataConnection::as_select(),
                 DataSource::as_select(),

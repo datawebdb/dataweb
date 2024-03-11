@@ -24,13 +24,11 @@ spec:
           info_mapped_name: discount_percent
           transformation:
               other_to_local_info: "{v} / 100"
-              local_info_to_other: "{v} * 100"
               replace_from: "{v}"
         - local_info: tax
           info_mapped_name: tax_percent
           transformation:
               other_to_local_info: "{v} / 100"
-              local_info_to_other: "{v} * 100"
               replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate
@@ -44,26 +42,7 @@ spec:
           info_mapped_name: shipdate
     - relay_name: emea_data_relay
       remote_entity_name: lineitem
-      entity_map:  
-        sql: select *, {price}/{quantity} as unitprice from {remote}
-        substitution_blocks:
-          info_substitutions:
-            price:
-              entity_name: lineitem
-              info_name: extendedprice
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-            quantity:
-              entity_name: lineitem
-              info_name: quantity
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-          source_substitutions:
-            remote: 
-              AllSourcesWith: 
-                - lineitem  
+      sql: select *, extendedprice/quantity as unitprice from lineitem
       relay_mappings:
         - local_info: unitprice
           info_mapped_name: unitprice  
@@ -96,26 +75,7 @@ spec:
           info_mapped_name: shipdate
     - relay_name: apac_data_relay
       remote_entity_name: lineitem
-      entity_map:  
-        sql: select *, {price}/{quantity} as unitprice from {remote}
-        substitution_blocks:
-          info_substitutions:
-            price:
-              entity_name: lineitem
-              info_name: extendedprice
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-            quantity:
-              entity_name: lineitem
-              info_name: quantity
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-          source_substitutions:
-            remote: 
-              AllSourcesWith: 
-                - lineitem  
+      sql: select *, extendedprice/quantity as unitprice from lineitem
       relay_mappings:
         - local_info: unitprice
           info_mapped_name: unitprice  
@@ -138,7 +98,6 @@ spec:
           info_mapped_name: tax
           transformation:
             other_to_local_info: "({v} + 1) * .05"
-            local_info_to_other: "{v} / .05 - 1"
             replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate
@@ -173,7 +132,6 @@ spec:
           info_mapped_name: tax
           transformation:
             other_to_local_info: "({v} + 1) * .05"
-            local_info_to_other: "{v} / .05 - 1"
             replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate

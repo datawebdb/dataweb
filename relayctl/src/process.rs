@@ -12,7 +12,7 @@ use mesh::model::config_commands::user::{ResolvedUserDeclaration, UserDeclaratio
 use mesh::model::config_commands::{
     ConfigCommand, ConfigObject, ResolvedConfigCommand, ResolvedConfigObject,
 };
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 
 pub(crate) async fn apply(
     path: std::path::PathBuf,
@@ -101,13 +101,17 @@ pub async fn apply_command(
         .await
         .map_err(|e| MeshError::RemoteError(e.to_string()))?;
 
-    match r.text().await {
-        Ok(_) => (),
-        Err(e) => {
-            println!("Failed to parse response as text with e {e}");
-        }
+    if !matches!(r.status(), StatusCode::OK) {
+        let msg = match r.text().await {
+            Ok(txt) => {
+                format!("Response from remote {txt}")
+            }
+            Err(e) => {
+                format!("Failed to parse response as text with e {e}")
+            }
+        };
+        return Err(MeshError::RemoteError(msg));
     }
-
     Ok(())
 }
 

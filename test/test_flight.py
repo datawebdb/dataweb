@@ -17,12 +17,12 @@ def test_flight_query1_na_us_data_relay():
 def test_flight_query2_na_data_relay():
     test_query2 = make_query2()
     df = execute_query(test_query2, 'localhost', 50055)
-    validate_query2(df)
+    validate_query2(df, 17)
     
 def test_flight_query2_na_us_data_relay():
     test_query2 = make_query2()
     df = execute_query(test_query2, 'localhost', 50054)
-    validate_query2(df)
+    validate_query2(df, 17)
 
 def test_flight_query3_na_data_relay():
     test_query3 = make_query3()
@@ -33,12 +33,7 @@ def test_flight_query3_na_data_relay():
     except ShouldHaveFailedException:
         raise Exception("Query3 should have failed, but passed!")
     except Exception as e:
-        expected = "Flight returned invalid argument error, " + \
-        "with message: Query validation failed with error " + \
-        'invalid query: Found table identifier "{user_tables}" ' + \
-        "which is neither an in scope table alias nor a SourceSubstitution. " + \
-        "Specifying table names directly is not allowed. " + \
-        "Use an explicit SourceList within a SourceSubstitution instead."
+        expected = "Flight returned invalid argument error, with message: Query validation failed with error invalid query: There must be exactly one entity per query."
         assert str(e)==expected, f'Query3 failed with unexpected error. Expected: {expected}, actual: {str(e)}'
 
 def test_flight_query3_na_us_data_relay():
@@ -50,12 +45,7 @@ def test_flight_query3_na_us_data_relay():
     except ShouldHaveFailedException:
         raise Exception("Query3 should have failed, but passed!")
     except Exception as e:
-        expected = "Flight returned invalid argument error, " + \
-        "with message: Query validation failed with error " + \
-        'invalid query: Found table identifier "{user_tables}" ' + \
-        "which is neither an in scope table alias nor a SourceSubstitution. " + \
-        "Specifying table names directly is not allowed. " + \
-        "Use an explicit SourceList within a SourceSubstitution instead."
+        expected = "Flight returned invalid argument error, with message: Query validation failed with error invalid query: There must be exactly one entity per query."
         assert str(e)==expected, f'Query3 failed with unexpected error. Expected: {expected}, actual: {str(e)}'
 
 

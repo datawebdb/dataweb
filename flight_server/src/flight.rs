@@ -8,6 +8,7 @@ use arrow_flight::{FlightClient, FlightEndpoint};
 use arrow_schema::{Field, Schema};
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use datafusion::sql::sqlparser::ast::Statement;
 use diesel_async::pooled_connection::bb8::Pool;
 
 use diesel_async::AsyncPgConnection;
@@ -21,9 +22,10 @@ use mesh::execute::result_manager::ResultManager;
 
 use mesh::execute::request_to_remote_requests;
 use mesh::execute::utils::{
-    create_query_request, map_and_create_local_tasks, verify_query_origination_information,
+    create_query_request, map_and_create_local_tasks, validate_sql_and_logical_round_trip,
+    verify_query_origination_information,
 };
-use mesh::execute::validation::validate_sql_template;
+
 use mesh::model::data_stores::{DataConnection, DataSource};
 use mesh::model::query::{
     FlightStreamStatus, NewFlightStream, QueryRequest, QueryTask, RawQueryRequest,
@@ -229,13 +231,16 @@ impl FlightRelay {
         Ok(response)
     }
 
+    #[allow(clippy::too_many_arguments)] // TODO: refactor/cleanup arg passing
     /// Queries remote relays which may have relevant data for additional flight endpoints
     /// which should be added to the response.
     async fn update_flight_info_response_from_remotes(
         &self,
         mut response: FlightInfo,
         db: &mut PgDb<'_>,
-        query: &RawQueryRequest,
+        raw_request: &RawQueryRequest,
+        query: &Statement,
+        entity_name: &str,
         request: &QueryRequest,
         originating_relay: Relay,
         requesting_user: User,
@@ -243,7 +248,9 @@ impl FlightRelay {
         debug!("Mapping QueryRequest to remote queries");
         let remote_requests = request_to_remote_requests(
             db,
+            raw_request,
             query,
+            entity_name,
             &request.originator_request_id,
             originating_relay,
             requesting_user,
@@ -508,7 +515,7 @@ impl FlightService for FlightRelay {
             .map_err(|e| Status::internal(format!("failed to connect to database! {e}")))?;
 
         let flight_descriptor = get_info_request.into_inner();
-        let query: RawQueryRequest =
+        let mut query: RawQueryRequest =
             serde_json::from_slice(&flight_descriptor.cmd).map_err(|_e| {
                 Status::invalid_argument(
                     "FlightDescriptior.cmd is not a valid JSON encoded RawQueryRequest",
@@ -547,10 +554,19 @@ impl FlightService for FlightRelay {
             None => (),
         }
 
-        debug!("Checking if sql template is valid...");
-        validate_sql_template(&query).map_err(|e| {
-            Status::invalid_argument(format!("Query validation failed with error {e}"))
-        })?;
+        debug!("Checking if sql is allowed and logically valid...");
+        let (entity_name, statement, logical_schema) =
+            validate_sql_and_logical_round_trip(&query.sql, &mut db)
+                .await
+                .map_err(|e| {
+                    Status::invalid_argument(format!("Query validation failed with error {e}"))
+                })?;
+
+        if query.return_arrow_schema.is_none() {
+            query.return_arrow_schema = Some(logical_schema);
+        }
+
+        debug!("Post round trip sql: {statement}");
 
         debug!("Creating QueryRequest");
         let request = match create_query_request(
@@ -577,7 +593,9 @@ impl FlightService for FlightRelay {
 
         debug!("Mapping QueryRequest to local queries");
         let created_tasks = map_and_create_local_tasks(
+            &statement,
             &query,
+            &entity_name,
             &request,
             &mut db,
             &direct_requester,
@@ -598,6 +616,8 @@ impl FlightService for FlightRelay {
                 response,
                 &mut db,
                 &query,
+                &statement,
+                &entity_name,
                 &request,
                 originating_relay,
                 requesting_user,

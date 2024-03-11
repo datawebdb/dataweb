@@ -53,7 +53,6 @@ spec:
           info_mapped_name: tax
           transformation:
             other_to_local_info: "({v} + 1) * .05"
-            local_info_to_other: "{v} / .05 - 1"
             replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate

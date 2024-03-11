@@ -1,40 +1,79 @@
 pub mod data_stores;
 mod map_local;
 mod map_remote;
+pub(crate) mod parse_utils;
+pub(crate) mod planning;
 pub mod result_manager;
 pub mod utils;
 pub mod validation;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::ops::ControlFlow;
 
 use crate::error::Result;
 use crate::model::access_control::SourcePermission;
 use crate::model::data_stores::DataSource;
-use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping};
+
 use crate::model::query::RawQueryRequest;
 use crate::model::relay::Relay;
 use crate::model::user::User;
-use crate::{
-    crud::PgDb,
-    error::MeshError,
-    model::query::{Query, SourceSubstitution},
-};
+use crate::{crud::PgDb, error::MeshError, model::query::Query};
 
+use datafusion::sql::sqlparser::ast::Statement;
+use datafusion::sql::sqlparser::ast::{TableFactor, VisitMut, VisitorMut};
 use tracing::debug;
 use uuid::Uuid;
 
 use self::map_local::map_sql;
 use self::map_remote::map_remote_request;
 
-/// Maps Local [Entity][crate::model::entity::Entity] names to Remote Entity names and the corresponding map of
-/// local [Information][crate::model::entity::Information] names to remote Information names.
-pub type LocaltoRemoteNameHashMap<'a> = HashMap<
-    &'a str,
-    (
-        &'a RemoteEntityMapping,
-        HashMap<&'a str, &'a RemoteInfoMapping>,
-    ),
->;
+struct TableVisitor<F>(F);
+
+impl<E, F: FnMut(&mut TableFactor) -> ControlFlow<E>> VisitorMut for TableVisitor<F> {
+    type Break = E;
+
+    fn post_visit_table_factor(
+        &mut self,
+        table_factor: &mut TableFactor,
+    ) -> ControlFlow<Self::Break> {
+        self.0(table_factor)
+    }
+}
+
+pub fn visit_table_factor_mut<V, E, F>(v: &mut V, f: F) -> ControlFlow<E>
+where
+    V: VisitMut,
+    F: FnMut(&mut TableFactor) -> ControlFlow<E>,
+{
+    let mut visitor = TableVisitor(f);
+    v.visit(&mut visitor)?;
+    ControlFlow::Continue(())
+}
+
+struct QueryVisitor<F>(F);
+
+impl<E, F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>> VisitorMut
+    for QueryVisitor<F>
+{
+    type Break = E;
+
+    fn post_visit_query(
+        &mut self,
+        query: &mut datafusion::sql::sqlparser::ast::Query,
+    ) -> ControlFlow<Self::Break> {
+        self.0(query)
+    }
+}
+
+pub fn visit_query_mut<V, E, F>(v: &mut V, f: F) -> ControlFlow<E>
+where
+    V: VisitMut,
+    F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>,
+{
+    let mut visitor = QueryVisitor(f);
+    v.visit(&mut visitor)?;
+    ControlFlow::Continue(())
+}
 
 /// Represents either the [Relay] or [User] from which a request was directly
 /// received. This is may be distinct from the originating_relay which originated
@@ -50,58 +89,48 @@ pub enum Requester {
 /// executed on the local relay to complete the request.
 pub async fn request_to_local_queries(
     db: &mut PgDb<'_>,
+    query: &Statement,
+    entity_name: &str,
     raw_request: &RawQueryRequest,
     direct_requester: &Requester,
     requesting_user: &User,
 ) -> Result<Vec<(Uuid, Query)>> {
-    let blocks = &raw_request.substitution_blocks;
+    let sources = db.get_mappings_by_entity_names(vec![entity_name]).await?;
 
-    let sources = match &blocks
-        .source_substitutions
-        .iter()
-        .next()
-        .ok_or(MeshError::InvalidQuery(
-            "There must be at least one source substitution!".to_string(),
-        ))?
-        .1
-    {
-        // Get mappings in each case, there can only be one case due to constraints above
-        SourceSubstitution::AllSourcesWith(entities) => {
-            let mut all_entities = HashSet::new();
-            for e in entities {
-                all_entities.insert(e.as_str());
-            }
-            db.get_mappings_by_entity_names(Vec::from_iter(all_entities))
-                .await?
-        }
-        SourceSubstitution::SourceList(raw_sources) => {
-            let mut all_sources = HashSet::new();
-            for id in raw_sources {
-                all_sources.insert(id.to_owned());
-            }
-            db.get_mappings_by_source_ids(Vec::from_iter(all_sources))
-                .await?
-        }
-    };
-
-    let sql = &raw_request.sql;
+    debug!("Got mappings for entity {entity_name}: {sources:?}");
     let mut queries = Vec::with_capacity(sources.len());
-    for ((con, source), mappings) in sources {
+    for ((_, source), mappings) in sources {
+        debug!("Creating map for {}", source.name);
+        let mut info_map_lookup = HashMap::with_capacity(mappings.len());
+        for (entity, info, field, map) in mappings.iter() {
+            debug!("entity {entity:?}");
+            debug!("info {info:?}");
+            debug!("field {field:?})");
+            debug!("map {map:?}");
+            debug!("Adding lookup for {} to {}", info.name, field.path);
+            if info_map_lookup
+                .insert(info.name.as_str(), (field, map))
+                .is_some()
+            {
+                return Err(MeshError::InvalidQuery(format!(
+                    "Found duplicate mapping for info {} and source {} field {}",
+                    info.name, source.name, field.name,
+                )));
+            }
+        }
         let permission =
             evaluate_permission_policies(db, direct_requester, requesting_user, &source).await?;
         let source_mapped_sql = map_sql(
-            sql,
-            &con,
+            query.to_owned(),
+            entity_name,
             &source,
-            &mappings,
-            blocks,
-            &raw_request.originator_mappings,
+            &info_map_lookup,
             permission,
         )?;
         queries.push((
             source.id,
             Query {
-                sql: source_mapped_sql,
+                sql: source_mapped_sql.to_string(),
                 return_schema: raw_request.return_arrow_schema.clone(),
             },
         ));
@@ -171,80 +200,51 @@ async fn evaluate_permission_policies(
 pub async fn request_to_remote_requests(
     db: &mut PgDb<'_>,
     raw_request: &RawQueryRequest,
+    query: &Statement,
+    entity_name: &str,
     request_uuid: &Uuid,
     originating_relay: Relay,
     requesting_user: User,
 ) -> Result<Vec<(Uuid, RawQueryRequest)>> {
-    let blocks = &raw_request.substitution_blocks;
-
-    let sources = match &blocks
-        .source_substitutions
-        .iter()
-        .next()
-        .expect("There must be at least one source substitution!")
-        .1
-    {
-        // Get mappings in each case, there can only be one case due to constraints above
-        SourceSubstitution::AllSourcesWith(entities) => {
-            let mut all_entities = HashSet::new();
-            for e in entities {
-                all_entities.insert(e.as_str());
-            }
-            db.get_remote_mappings_by_entity_names(Vec::from_iter(all_entities))
-                .await?
-        }
-        // Explicit source lists currently need to be sent to the relevant relay directly
-        SourceSubstitution::SourceList(_raw_sources) => HashMap::new(),
-    };
+    let sources = db
+        .get_remote_mappings_by_entity_names(vec![entity_name])
+        .await?;
 
     let mut remote_query_requests = Vec::with_capacity(sources.len());
     for (relay, mappings) in sources.iter() {
         debug!("Processing remote requests for peer relay {relay:?}");
-        let mut name_map: LocaltoRemoteNameHashMap = HashMap::new();
-        for (entity, info, entity_map, info_map) in mappings {
-            debug!("Got entity {} and info {}", entity.name, info.name);
-            debug!("Got {entity_map:?} and {info_map:?}");
-            match name_map.get_mut(entity.name.as_str()) {
-                Some(v) => {
-                    if v.0.remote_entity_name == entity_map.remote_entity_name.as_str() {
-                        let info_namemap = &mut v.1;
-                        match info_namemap.get(info.name.as_str()) {
-                            Some(_) => {
-                                return Err(MeshError::InvalidQuery(format!(
-                                    "Found duplicate info name {} for entity {} and relay {}!",
-                                    info.name, entity.name, relay.id
-                                )))
-                            }
-                            None => {
-                                info_namemap.insert(info.name.as_str(), info_map);
-                            }
-                        }
-                    } else {
-                        return Err(MeshError::InvalidQuery(format!(
-                            "Found duplicate and conflicting entity mappings! \
-                        Local name: {}, Remote names: {} and {}",
-                            entity.name, v.0.remote_entity_name, entity_map.remote_entity_name
-                        )));
-                    }
-                }
-                None => {
-                    let mut info_namemap = HashMap::new();
-                    info_namemap.insert(info.name.as_str(), info_map);
-                    name_map.insert(&entity.name, (&entity_map, info_namemap));
-                }
-            };
+
+        let entity_map = &mappings
+            .first()
+            .ok_or(MeshError::InvalidQuery(format!(
+                "No mappings found for relay {} and entity {entity_name}",
+                relay.id
+            )))?
+            .2;
+
+        let mut info_map_lookup = HashMap::with_capacity(mappings.len());
+        for (_, info, _, map) in mappings.iter() {
+            if info_map_lookup.insert(info.name.as_str(), map).is_some() {
+                return Err(MeshError::InvalidQuery(format!(
+                    "Found duplicate mapping for info {}",
+                    info.name
+                )));
+            }
         }
-        debug!("Got name map {name_map:?}");
+
+        let mapped_query =
+            map_remote_request(query.to_owned(), entity_name, entity_map, &info_map_lookup)?;
+
         remote_query_requests.push((
             relay.id,
-            map_remote_request(
-                raw_request,
-                relay,
-                Some(originating_relay.clone()),
-                &requesting_user,
-                request_uuid,
-                &name_map,
-            )?,
+            RawQueryRequest {
+                sql: mapped_query.to_string(),
+                request_uuid: Some(*request_uuid),
+                requesting_user: Some(requesting_user.clone()),
+                originating_relay: Some(originating_relay.clone()),
+                originating_task_id: raw_request.originating_task_id,
+                return_arrow_schema: raw_request.return_arrow_schema.clone(),
+            },
         ))
     }
 

@@ -1,6 +1,5 @@
 use super::data_stores::DataField;
 use super::entity::Information;
-use super::query::SubstitutionBlocks;
 
 use crate::model::entity::Entity;
 use crate::model::relay::Relay;
@@ -16,7 +15,15 @@ use uuid::Uuid;
 /// how the [DataField] can be converted into the [Information] via a
 /// [Transformation].
 #[derive(
-    Queryable, Selectable, Insertable, Associations, Debug, PartialEq, Serialize, Deserialize,
+    Queryable,
+    Selectable,
+    Insertable,
+    Associations,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    AsChangeset,
 )]
 #[diesel(belongs_to(Information), belongs_to(DataField))]
 #[diesel(table_name = field_mappings)]
@@ -46,16 +53,12 @@ pub struct Mapping {
 pub struct RemoteEntityMapping {
     pub id: Uuid,
     pub sql: String,
-    pub substitution_blocks: SubstitutionBlocks,
     /// The [Relay] which maintains the remote [Entity]
     pub relay_id: Uuid,
     /// The local [Entity] which will be translated
     pub entity_id: Uuid,
     /// The name of the [Entity] on the remote relay being translated
     pub remote_entity_name: String,
-    /// If true, a subquery template is needed to transform the remote [Entity] into the local one.
-    /// If false, sql and substitution_blocks are ignored.
-    pub needs_subquery_transformation: bool,
 }
 
 /// Used to insert a new [RemoteEntityMapping] to the database.
@@ -74,16 +77,12 @@ pub struct RemoteEntityMapping {
 #[diesel(table_name = remote_entity_mapping)]
 pub struct NewRemoteEntityMapping {
     pub sql: String,
-    pub substitution_blocks: SubstitutionBlocks,
     /// The [Relay] which maintains the remote [Entity]
     pub relay_id: Uuid,
     /// The local [Entity] which will be translated
     pub entity_id: Uuid,
     /// The name of the [Entity] on the remote relay being translated
     pub remote_entity_name: String,
-    /// If true, a subquery template is needed to transform the remote [Entity] into the local one.
-    /// If false, sql and substitution_blocks are ignored.
-    pub needs_subquery_transformation: bool,
 }
 
 /// Ties a local [Information] to a logical or literal field of a [RemoteEntityMapping]. This enables
@@ -108,7 +107,6 @@ pub struct RemoteInfoMapping {
     pub remote_entity_mapping_id: Uuid,
     pub information_id: Uuid,
     pub info_mapped_name: String,
-    pub literal_derived_field: bool,
     pub transformation: Transformation,
 }
 
@@ -129,11 +127,6 @@ pub struct Transformation {
     /// on the context of this Transformation.
     /// Example: "{v}/10 + 5"
     pub other_to_local_info: String,
-    /// The expression template to transform the local [Information] to the other value.
-    /// Note that "other" could be a local [DataField] or a remote [Information] depending
-    /// on the context of this Transformation.
-    /// Example: "({v} - 5)*10"
-    pub local_info_to_other: String,
     /// The portion of each expression which should be replaced by the DataField path, e.g. "{v}"
     pub replace_from: String,
 }
@@ -142,10 +135,6 @@ impl Transformation {
     /// Given self as f: X->Y and Y->X and other as g: Y->Z and Z->Y returns a [Transformation]
     /// representing the composition, h=f(g): X->Z and Z->X.
     pub fn compose(&self, other: &Transformation) -> Transformation {
-        let local_info_to_other = self.local_info_to_other.replace(
-            &self.replace_from,
-            &format!("({})", other.local_info_to_other),
-        );
         let other_to_local_info = other
             .other_to_local_info
             .replace(
@@ -155,18 +144,7 @@ impl Transformation {
             .replace(&self.replace_from, &other.replace_from);
         Transformation {
             other_to_local_info,
-            local_info_to_other,
             replace_from: other.replace_from.clone(),
-        }
-    }
-
-    /// Given self as f: X->Y and Y->X, inverts "local info" and "other" to give
-    /// f: Y->X and X->Y.
-    pub fn invert(&self) -> Transformation {
-        Transformation {
-            other_to_local_info: self.local_info_to_other.clone(),
-            local_info_to_other: self.other_to_local_info.clone(),
-            replace_from: self.replace_from.clone(),
         }
     }
 }

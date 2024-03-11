@@ -1,0 +1,15 @@
+[package]
+name = "datafusion-sql-writer"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "datafusion_sql_writer"
+path = "src/lib.rs"
+
+[dependencies]
+datafusion.workspace = true
+chrono = "0.4.31"
+
+[dev-dependencies]
+tokio = "1.35.1"

@@ -38,30 +38,10 @@ spec:
           info_mapped_name: shipdate
     - relay_name: global_data_relay
       remote_entity_name: lineitem
-      entity_map:  
-        sql: select *, {tax}*{price} as tax_amount from {remote}
-        substitution_blocks:
-          info_substitutions:
-            price:
-              entity_name: lineitem
-              info_name: extendedprice
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-            tax:
-              entity_name: lineitem
-              info_name: tax
-              include_info: true
-              exclude_info_alias: true
-              include_data_field: false
-          source_substitutions:
-            remote: 
-              AllSourcesWith: 
-                - lineitem     
+      sql: select *, tax*extendedprice as tax_amount from lineitem   
       relay_mappings:
         - local_info: tax_amount
           info_mapped_name: tax_amount  
-          literal_derived_field: true     
         - local_info: unitprice
           info_mapped_name: unitprice  
         - local_info: linenumber
@@ -80,13 +60,11 @@ spec:
           info_mapped_name: discount
           transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
         - local_info: tax_percent
           info_mapped_name: tax
           transformation:
               other_to_local_info: "{v} * 100"
-              local_info_to_other: "{v} / 100"
               replace_from: "{v}"
         - local_info: commitdate
           info_mapped_name: commitdate

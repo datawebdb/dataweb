@@ -177,7 +177,7 @@ mod tests {
             &SourcePermission {
                 columns: ColumnPermission {
                     allowed_columns: HashSet::from_iter(
-                        vec!["alias1.col1", "col2"].iter().map(|s| s.to_string()),
+                        vec!["alias1.col1"].iter().map(|s| s.to_string()),
                     ),
                 },
                 rows: RowPermission {
@@ -188,12 +188,12 @@ mod tests {
 
         println!("Post sub statement {statement}");
 
-        assert!(
-            (statement.to_string() ==
-            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT col2, alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
-            ||
-            (statement.to_string() ==
-            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')".to_string())
+        assert_eq!(
+            statement.to_string(),
+            concat!(
+            r#"SELECT "entityname"."foo", "entityname"."bar" "#, 
+            r#"FROM (SELECT "entityname"."foo", "entityname"."bar" "#, 
+            r#"FROM (SELECT alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))"#)
         );
 
         Ok(())
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_info_substitution() -> Result<()> {
-        let sql = "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
+        let sql = "SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
         let dialect = GenericDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)

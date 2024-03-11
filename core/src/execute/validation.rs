@@ -86,56 +86,12 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
     Ok((entity, statement))
 }
 
-fn optimzer_rules() -> Vec<Arc<dyn OptimizerRule + Sync + Send>> {
-    vec![
-            Arc::new(EliminateNestedUnion::new()),
-            Arc::new(SimplifyExpressions::new()),
-            Arc::new(UnwrapCastInComparison::new()),
-            Arc::new(ReplaceDistinctWithAggregate::new()),
-            Arc::new(EliminateJoin::new()),
-            Arc::new(DecorrelatePredicateSubquery::new()),
-            Arc::new(ScalarSubqueryToJoin::new()),
-            Arc::new(ExtractEquijoinPredicate::new()),
-            // simplify expressions does not simplify expressions in subqueries, so we
-            // run it again after running the optimizations that potentially converted
-            // subqueries to joins
-            Arc::new(SimplifyExpressions::new()),
-            Arc::new(SimplifyExpressions::new()),
-            Arc::new(RewriteDisjunctivePredicate::new()),
-            Arc::new(EliminateDuplicatedExpr::new()),
-            Arc::new(EliminateFilter::new()),
-            Arc::new(EliminateCrossJoin::new()),
-            Arc::new(CommonSubexprEliminate::new()),
-            Arc::new(EliminateLimit::new()),
-            Arc::new(PropagateEmptyRelation::new()),
-            // Must be after PropagateEmptyRelation
-            Arc::new(EliminateOneUnion::new()),
-            Arc::new(FilterNullJoinKeys::default()),
-            Arc::new(EliminateOuterJoin::new()),
-            // Filters can't be pushed down past Limits, we should do PushDownFilter after PushDownLimit
-            Arc::new(PushDownLimit::new()),
-            Arc::new(PushDownFilter::new()),
-            Arc::new(SingleDistinctToGroupBy::new()),
-            // The previous optimizations added expressions and projections,
-            // that might benefit from the following rules
-            Arc::new(SimplifyExpressions::new()),
-            Arc::new(UnwrapCastInComparison::new()),
-            Arc::new(CommonSubexprEliminate::new()),
-            // OptimizeProjections seems to remove information needed to recover valid SQL AST
-            //Arc::new(OptimizeProjections::new()),
-    ]
-}
-
 /// Uses datafusion to logically plan and optimize the [Statement], ultimately converting back to
 /// a [Statement] which has alias names resolved, columns fully qualified, expressions simplified and more.
 pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<(Statement, Schema)> {
     let sql_to_rel = SqlToRel::new(&context);
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
     debug!("Unoptimized Plan: {}", logical_plan.display_indent());
-    // let logical_plan = Analyzer::new().execute_and_check(&logical_plan, &ConfigOptions::default(), |_, _| {})?;
-    // debug!("Analyzed Plan: {}",logical_plan.display_indent());
-    // let logical_plan = Optimizer::with_rules(optimzer_rules()).optimize(&logical_plan, &OptimizerContext::new(), |_,_| {})?;
-    // debug!("Optimized Plan: {}", logical_plan.display_indent());
     let schema: Schema = logical_plan.schema().as_ref().into();
     let statement = from_df_plan(&logical_plan, Arc::new(PostgreSqlDialect {}))?;
     Ok((statement, schema))

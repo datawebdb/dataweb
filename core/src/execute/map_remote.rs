@@ -71,11 +71,10 @@ mod tests {
 
     use crate::execute::planning::EntityContext;
 
+    use crate::execute::validation::logical_round_trip;
     use crate::model::mappings::{RemoteEntityMapping, RemoteInfoMapping, Transformation};
     use arrow_schema::{DataType, Field, Schema};
-    use datafusion::sql::planner::SqlToRel;
     use datafusion::sql::sqlparser::{dialect::GenericDialect, parser::Parser};
-    use datafusion_sql_writer::from_df_plan;
     use uuid::Uuid;
 
     use crate::error::{MeshError, Result};
@@ -97,10 +96,8 @@ mod tests {
             Field::new("bar", DataType::UInt8, false),
         ]));
 
-        let context_provider = EntityContext::new("entityname", schema);
-        let sql_to_rel = SqlToRel::new(&context_provider);
-        let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
-        let mut statement = from_df_plan(&logical_plan, Arc::new(dialect))?;
+        let context = EntityContext::new("entityname", schema);
+        let (mut statement, _) = logical_round_trip(statement, context)?;
 
         println!("Round trip statement: {statement}");
 
@@ -119,7 +116,7 @@ mod tests {
 
         assert_eq!(
             statement.to_string(),
-            "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT * FROM test)".to_string()
+            "SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT * FROM test))"
         );
 
         Ok(())
@@ -127,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_info_substitution() -> Result<()> {
-        let sql = "SELECT `entityname`.`foo`, `entityname`.`bar` FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
+        let sql = "SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
         let dialect = GenericDialect {};
 
         let mut ast = Parser::parse_sql(&dialect, &sql)

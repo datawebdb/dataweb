@@ -12,8 +12,7 @@ use super::parse_utils::{
 };
 
 /// Substitutes appropriate [Entity][crate::model::entity::Entity] and
-/// [Information][crate::model::entity::Information] names for a specific remote relay
-/// for a [SubstitutionBlocks] object sent to the local relay. Also applies relevant
+/// [Information][crate::model::entity::Information] and applies relevant
 /// [Transformations][crate::model::mappings::Transformation] to the request SQL.
 pub(crate) fn map_remote_request(
     mut statement: Statement,
@@ -85,7 +84,7 @@ mod tests {
         let sql = "select foo, bar from (select * from entityname);";
         let dialect = GenericDialect {};
 
-        let mut ast = Parser::parse_sql(&dialect, &sql)
+        let mut ast = Parser::parse_sql(&dialect, sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
         let statement = ast.remove(0);
@@ -126,7 +125,7 @@ mod tests {
         let sql = "SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
         let dialect = GenericDialect {};
 
-        let mut ast = Parser::parse_sql(&dialect, &sql)
+        let mut ast = Parser::parse_sql(&dialect, sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
         let mut statement = ast.remove(0);

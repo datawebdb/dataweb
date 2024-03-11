@@ -75,7 +75,7 @@ fn apply_source_permission(
     })
 }
 
-/// Modifies [Statement] in place, rewriting references to an [Entity] to be in terms of the passed
+/// Modifies [Statement] in place, rewriting references to an Entity to be in terms of the passed
 /// [DataSource]
 fn apply_source_substitutions(
     statement: &mut Statement,
@@ -151,7 +151,7 @@ mod tests {
         let sql = "select foo, bar from (select * from entityname);";
         let dialect = GenericDialect {};
 
-        let mut ast = Parser::parse_sql(&dialect, &sql)
+        let mut ast = Parser::parse_sql(&dialect, sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
         let statement = ast.remove(0);
@@ -178,7 +178,7 @@ mod tests {
             &SourcePermission {
                 columns: ColumnPermission {
                     allowed_columns: HashSet::from_iter(
-                        vec!["alias1.col1"].iter().map(|s| s.to_string()),
+                        ["alias1.col1"].iter().map(|s| s.to_string()),
                     ),
                 },
                 rows: RowPermission {
@@ -206,7 +206,7 @@ mod tests {
         let sql = "SELECT \"entityname\".\"foo\", \"entityname\".\"bar\" FROM (SELECT alias1.col1, col2 FROM (SELECT * FROM test) WHERE col1 = '123')";
         let dialect = GenericDialect {};
 
-        let mut ast = Parser::parse_sql(&dialect, &sql)
+        let mut ast = Parser::parse_sql(&dialect, sql)
             .map_err(|e| MeshError::InvalidQuery(format!("sqlparser syntax error: {e}")))?;
 
         let mut statement = ast.remove(0);
@@ -235,7 +235,7 @@ mod tests {
             &SourcePermission {
                 columns: ColumnPermission {
                     allowed_columns: HashSet::from_iter(
-                        vec!["field.path"].iter().map(|s| s.to_string()),
+                        ["field.path"].iter().map(|s| s.to_string()),
                     ),
                 },
                 rows: RowPermission {

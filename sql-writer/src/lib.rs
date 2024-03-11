@@ -187,7 +187,7 @@ fn select_to_sql(
             } else {
                 let mut derived_builder = DerivedRelationBuilder::default();
                 derived_builder.lateral(false).alias(None).subquery({
-                    let inner_statment = query_to_sql(&plan, dialect.clone())?;
+                    let inner_statment = query_to_sql(plan, dialect.clone())?;
                     if let ast::Statement::Query(inner_query) = inner_statment {
                         inner_query
                     } else {
@@ -288,7 +288,7 @@ fn select_to_sql(
                 None => ast::JoinConstraint::None,
             };
 
-            return not_impl_err!("to do!");
+            not_impl_err!("to do!")
 
             // let mut right_relation = RelationBuilder::default();
 

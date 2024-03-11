@@ -117,9 +117,10 @@ pub(crate) fn substitute_table_factor(
                     partitions: partitions.clone(),
                 },
                 _ => {
-                    return std::ops::ControlFlow::Break(MeshError::InvalidQuery(format!(
+                    return std::ops::ControlFlow::Break(MeshError::InvalidQuery(
                         "Found unsupported entity mapping, only nested queries are supported."
-                    )))
+                            .to_string(),
+                    ))
                 }
             };
         };

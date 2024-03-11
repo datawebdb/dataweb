@@ -73,7 +73,7 @@ pub fn logical_round_trip(
     Ok((statement, schema))
 }
 
-/// Each [Statement] should only reference a single [Entity]. Verifies this is the case
+/// Each [Statement] should only reference a single Entity. Verifies this is the case
 /// and returns the name of that Entity.
 fn get_entity_for_statement(statement: &Statement) -> Result<String> {
     let mut entities = vec![];

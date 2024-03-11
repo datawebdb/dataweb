@@ -231,6 +231,7 @@ impl FlightRelay {
         Ok(response)
     }
 
+    #[allow(clippy::too_many_arguments)] // TODO: refactor/cleanup arg passing
     /// Queries remote relays which may have relevant data for additional flight endpoints
     /// which should be added to the response.
     async fn update_flight_info_response_from_remotes(
@@ -561,9 +562,7 @@ impl FlightService for FlightRelay {
                     Status::invalid_argument(format!("Query validation failed with error {e}"))
                 })?;
 
-        if query.return_arrow_schema.is_some() {
-            ()
-        } else {
+        if query.return_arrow_schema.is_none() {
             query.return_arrow_schema = Some(logical_schema);
         }
 

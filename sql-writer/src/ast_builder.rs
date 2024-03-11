@@ -150,11 +150,7 @@ impl SelectBuilder {
     }
 
     pub fn already_projected(&self) -> bool {
-        if self.projection.len() > 0 {
-            true
-        } else {
-            false
-        }
+        !self.projection.is_empty()
     }
     #[allow(unused_mut)]
     pub fn into(&mut self, value: Option<ast::SelectInto>) -> &mut Self {

@@ -190,8 +190,7 @@ fn scalar_value_to_sql(val: &ScalarValue) -> Result<String> {
     }
 }
 
-/// Computes the appropriate projection string for a given projected [SchemaRef] and inserts
-/// the appropraite [InfoSubstitution] for the returned string
+/// Computes the appropriate projection string for a given projected [SchemaRef]
 pub fn map_projection(entity_name: &str, projected_schema: SchemaRef) -> String {
     projected_schema
         .fields()

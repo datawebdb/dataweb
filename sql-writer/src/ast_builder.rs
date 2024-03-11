@@ -149,10 +149,10 @@ impl SelectBuilder {
         new
     }
 
-    pub fn already_projected(&self) -> bool{
-        if self.projection.len()>0{
+    pub fn already_projected(&self) -> bool {
+        if self.projection.len() > 0 {
             true
-        } else{
+        } else {
             false
         }
     }

@@ -554,15 +554,16 @@ impl FlightService for FlightRelay {
         }
 
         debug!("Checking if sql is allowed and logically valid...");
-        let (entity_name, statement, logical_schema) = validate_sql_and_logical_round_trip(&query.sql, &mut db)
-            .await
-            .map_err(|e| {
-                Status::invalid_argument(format!("Query validation failed with error {e}"))
-            })?;
+        let (entity_name, statement, logical_schema) =
+            validate_sql_and_logical_round_trip(&query.sql, &mut db)
+                .await
+                .map_err(|e| {
+                    Status::invalid_argument(format!("Query validation failed with error {e}"))
+                })?;
 
-        if query.return_arrow_schema.is_some(){
+        if query.return_arrow_schema.is_some() {
             ()
-        } else{
+        } else {
             query.return_arrow_schema = Some(logical_schema);
         }
 

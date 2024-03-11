@@ -122,7 +122,7 @@ async fn process_local_mapping_decl(
             }
         }
     }
-    
+
     Ok(())
 }
 

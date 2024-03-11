@@ -101,17 +101,17 @@ pub async fn apply_command(
         .await
         .map_err(|e| MeshError::RemoteError(e.to_string()))?;
 
-    if !matches!(r.status(), StatusCode::OK){
+    if !matches!(r.status(), StatusCode::OK) {
         let msg = match r.text().await {
             Ok(txt) => {
                 format!("Response from remote {txt}")
-            },
+            }
             Err(e) => {
                 format!("Failed to parse response as text with e {e}")
             }
         };
-        return Err(MeshError::RemoteError(msg))
-    } 
+        return Err(MeshError::RemoteError(msg));
+    }
     Ok(())
 }
 

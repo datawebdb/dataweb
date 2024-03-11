@@ -52,13 +52,17 @@ where
 
 struct QueryVisitor<F>(F);
 
-impl<E, F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>> VisitorMut for QueryVisitor<F> {
+impl<E, F: FnMut(&mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<E>> VisitorMut
+    for QueryVisitor<F>
+{
     type Break = E;
 
-    fn post_visit_query(&mut self, query: &mut datafusion::sql::sqlparser::ast::Query) -> ControlFlow<Self::Break> {
+    fn post_visit_query(
+        &mut self,
+        query: &mut datafusion::sql::sqlparser::ast::Query,
+    ) -> ControlFlow<Self::Break> {
         self.0(query)
     }
-    
 }
 
 pub fn visit_query_mut<V, E, F>(v: &mut V, f: F) -> ControlFlow<E>

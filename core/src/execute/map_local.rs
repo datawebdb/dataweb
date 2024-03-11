@@ -15,7 +15,8 @@ use crate::{
 };
 
 use super::parse_utils::{
-    apply_aliases, apply_col_iden_mapping, iden_str_to_select_item, parse_sql_as_expr, parse_sql_as_table_factor, projected_filtered_query, substitute_table_factor
+    apply_aliases, apply_col_iden_mapping, iden_str_to_select_item, parse_sql_as_expr,
+    parse_sql_as_table_factor, projected_filtered_query, substitute_table_factor,
 };
 
 /// Substitutes appropriate table names and fields for a specific source
@@ -191,9 +192,10 @@ mod tests {
         assert_eq!(
             statement.to_string(),
             concat!(
-            r#"SELECT "entityname"."foo", "entityname"."bar" "#, 
-            r#"FROM (SELECT "entityname"."foo", "entityname"."bar" "#, 
-            r#"FROM (SELECT alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))"#)
+                r#"SELECT "entityname"."foo", "entityname"."bar" "#,
+                r#"FROM (SELECT "entityname"."foo", "entityname"."bar" "#,
+                r#"FROM (SELECT alias1.col1 FROM (SELECT * FROM test) WHERE col1 = '123'))"#
+            )
         );
 
         Ok(())

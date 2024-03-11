@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use datafusion::{sql::sqlparser::{
+use datafusion::sql::sqlparser::{
     ast::{
         visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr,
         Statement, TableFactor, TableWithJoins,
     },
     dialect::GenericDialect,
     parser::Parser,
-}};
+};
 
 use crate::error::{MeshError, Result};
 
@@ -116,7 +116,11 @@ pub(crate) fn substitute_table_factor(
                     version: version.clone(),
                     partitions: partitions.clone(),
                 },
-                _ => return std::ops::ControlFlow::Break(MeshError::InvalidQuery(format!("Found unsupported entity mapping, only nested queries are supported."))),
+                _ => {
+                    return std::ops::ControlFlow::Break(MeshError::InvalidQuery(format!(
+                        "Found unsupported entity mapping, only nested queries are supported."
+                    )))
+                }
             };
         };
         std::ops::ControlFlow::Continue(())
@@ -156,21 +160,26 @@ fn maybe_extract_info<'a>(expr: &'a Expr, entity_name: &'a str) -> Option<&'a St
 
 /// Visit all [SelectItem]s and make UnnamedExprs into ExprWithAlias so that fields retain their names
 /// even when transformed by [apply_col_iden_mapping].
-pub(crate) fn apply_aliases(
-    statement: &mut Statement,
-    entity_name: &str,
-) -> Result<()>{
+pub(crate) fn apply_aliases(statement: &mut Statement, entity_name: &str) -> Result<()> {
     visit_query_mut(statement, |query| {
-        if let SetExpr::Select(select) = query.body.as_mut(){
-            let updated_proj = select.projection.iter()
+        if let SetExpr::Select(select) = query.body.as_mut() {
+            let updated_proj = select
+                .projection
+                .iter()
                 .map(|item| {
-                    if let SelectItem::UnnamedExpr(expr) = item{
+                    if let SelectItem::UnnamedExpr(expr) = item {
                         let info_name = match maybe_extract_info(expr, entity_name) {
                             Some(i) => i,
                             None => return item.clone(),
                         };
-                        SelectItem::ExprWithAlias { expr: expr.clone(), alias: Ident { value: info_name.to_string(), quote_style: None } }
-                    } else{
+                        SelectItem::ExprWithAlias {
+                            expr: expr.clone(),
+                            alias: Ident {
+                                value: info_name.to_string(),
+                                quote_style: None,
+                            },
+                        }
+                    } else {
                         item.clone()
                     }
                 })

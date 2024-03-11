@@ -4,11 +4,13 @@ use ast_builder::DerivedRelationBuilder;
 use chrono::{NaiveDate, NaiveDateTime};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::{JoinConstraint, JoinType, Like};
-use datafusion::sql::sqlparser::ast::{Function, FunctionArg, Ident, JoinOperator, OrderByExpr, SelectItem};
+use datafusion::sql::sqlparser::ast::{
+    Function, FunctionArg, Ident, JoinOperator, OrderByExpr, SelectItem,
+};
 use datafusion::{
     error::{DataFusionError, Result},
     scalar::ScalarValue,
-    sql::sqlparser::ast::{self, Expr as SQLExpr, DataType as SQLDataType},
+    sql::sqlparser::ast::{self, DataType as SQLDataType, Expr as SQLExpr},
 };
 
 use datafusion::common::{internal_err, not_impl_err, DFSchema};
@@ -16,7 +18,8 @@ use datafusion::common::{Column, DFSchemaRef};
 #[allow(unused_imports)]
 use datafusion::logical_expr::aggregate_function;
 use datafusion::logical_expr::expr::{
-    AggregateFunctionDefinition, Alias, BinaryExpr, Case, Cast, InList, ScalarFunction as DFScalarFunction, WindowFunction
+    AggregateFunctionDefinition, Alias, BinaryExpr, Case, Cast, InList,
+    ScalarFunction as DFScalarFunction, WindowFunction,
 };
 use datafusion::logical_expr::{Between, LogicalPlan, Operator};
 use datafusion::prelude::Expr;
@@ -91,14 +94,12 @@ fn finalize_builders(
     mut query: QueryBuilder,
     mut select: SelectBuilder,
     relation: RelationBuilder,
-) -> Result<ast::Statement>{
+) -> Result<ast::Statement> {
     let mut twj = select.pop_from().unwrap();
     twj.relation(relation);
     select.push_from(twj);
 
-    let body = ast::SetExpr::Select(Box::new(
-        select.build().map_err(builder_error_to_df)?,
-    ));
+    let body = ast::SetExpr::Select(Box::new(select.build().map_err(builder_error_to_df)?));
     let query = query
         .body(Box::new(body))
         .build()
@@ -127,30 +128,39 @@ fn select_to_sql(
         }
         LogicalPlan::Projection(p) => {
             // A second projection implies a derived tablefactor
-            if !select.already_projected(){
+            if !select.already_projected() {
                 // Special handling when projecting an agregation plan
-                if let LogicalPlan::Aggregate(agg) = p.input.as_ref(){
+                if let LogicalPlan::Aggregate(agg) = p.input.as_ref() {
                     // Currently assuming projection is always group bys first, then aggregations
                     let n_group_bys = agg.group_expr.len();
-                    let mut items = p.expr
+                    let mut items = p
+                        .expr
                         .iter()
                         .take(n_group_bys)
                         .map(|e| select_item_to_sql(e, p.input.schema(), 0, dialect.clone()))
                         .collect::<Result<Vec<_>>>()?;
 
-                    let proj_aggs = p.expr
+                    let proj_aggs = p
+                        .expr
                         .iter()
                         .skip(n_group_bys)
                         .zip(agg.aggr_expr.iter())
                         .map(|(proj, agg_exp)| {
-                            let sql_agg_expr = select_item_to_sql(agg_exp, p.input.schema(), 0, dialect.clone())?;
-                            let maybe_aliased = if let Expr::Alias(Alias { name, .. }) = proj{
-                                if let SelectItem::UnnamedExpr(aggregation_fun) = sql_agg_expr{
-                                    SelectItem::ExprWithAlias { expr: aggregation_fun, alias: Ident{value: name.to_string(), quote_style: None} }
-                                } else{
+                            let sql_agg_expr =
+                                select_item_to_sql(agg_exp, p.input.schema(), 0, dialect.clone())?;
+                            let maybe_aliased = if let Expr::Alias(Alias { name, .. }) = proj {
+                                if let SelectItem::UnnamedExpr(aggregation_fun) = sql_agg_expr {
+                                    SelectItem::ExprWithAlias {
+                                        expr: aggregation_fun,
+                                        alias: Ident {
+                                            value: name.to_string(),
+                                            quote_style: None,
+                                        },
+                                    }
+                                } else {
                                     sql_agg_expr
                                 }
-                            } else{
+                            } else {
                                 sql_agg_expr
                             };
                             Ok(maybe_aliased)
@@ -159,13 +169,13 @@ fn select_to_sql(
                     items.extend(proj_aggs);
                     select.projection(items);
                     select.group_by(ast::GroupByExpr::Expressions(
-                        agg.group_expr.iter()
+                        agg.group_expr
+                            .iter()
                             .map(|expr| expr_to_sql(expr, dialect.clone()))
-                            .collect::<Result<Vec<_>>>()?
+                            .collect::<Result<Vec<_>>>()?,
                     ));
                     select_to_sql(agg.input.as_ref(), query, select, relation, dialect.clone())
-                }
-                else{
+                } else {
                     let items = p
                         .expr
                         .iter()
@@ -174,29 +184,24 @@ fn select_to_sql(
                     select.projection(items);
                     select_to_sql(p.input.as_ref(), query, select, relation, dialect.clone())
                 }
-            } else{
+            } else {
                 let mut derived_builder = DerivedRelationBuilder::default();
-                derived_builder
-                    .lateral(false)
-                    .alias(None)
-                    .subquery(
-                        {
-                            let inner_statment = query_to_sql(&plan, dialect.clone())?;
-                            if let ast::Statement::Query(inner_query) = inner_statment{
-                                inner_query
-                            } else{
-                                return internal_err!("Subquery must be a Query, but found {inner_statment:?}")
-                            }
-                        }
-                    );
+                derived_builder.lateral(false).alias(None).subquery({
+                    let inner_statment = query_to_sql(&plan, dialect.clone())?;
+                    if let ast::Statement::Query(inner_query) = inner_statment {
+                        inner_query
+                    } else {
+                        return internal_err!(
+                            "Subquery must be a Query, but found {inner_statment:?}"
+                        );
+                    }
+                });
                 relation.derived(derived_builder);
                 finalize_builders(query, select, relation)
-            }  
-            
+            }
         }
         LogicalPlan::Filter(filter) => {
-            let filter_expr =
-                expr_to_sql(&filter.predicate, dialect.clone())?;
+            let filter_expr = expr_to_sql(&filter.predicate, dialect.clone())?;
 
             select.selection(Some(filter_expr));
 
@@ -257,10 +262,7 @@ fn select_to_sql(
             // parse filter if exists
             let _in_join_schema = join.left.schema().join(join.right.schema())?;
             let join_filter = match &join.filter {
-                Some(filter) => Some(expr_to_sql(
-                    filter,
-                    dialect.clone(),
-                )?),
+                Some(filter) => Some(expr_to_sql(filter, dialect.clone())?),
                 None => None,
             };
 
@@ -286,7 +288,7 @@ fn select_to_sql(
                 None => ast::JoinConstraint::None,
             };
 
-            return not_impl_err!("to do!")
+            return not_impl_err!("to do!");
 
             // let mut right_relation = RelationBuilder::default();
 
@@ -357,10 +359,7 @@ fn select_item_to_sql(
     }
 }
 
-fn expr_to_sql(
-    expr: &Expr,
-    dialect: Arc<dyn Dialect>,
-) -> Result<SQLExpr> {
+fn expr_to_sql(expr: &Expr, dialect: Arc<dyn Dialect>) -> Result<SQLExpr> {
     match expr {
         Expr::InList(InList {
             expr,
@@ -400,12 +399,14 @@ fn expr_to_sql(
         }
         Expr::Cast(Cast { expr, data_type }) => {
             let inner_expr = expr_to_sql(expr.as_ref(), dialect.clone())?;
-            Ok(SQLExpr::Cast { expr: Box::new(inner_expr), data_type: df_to_sql_data_type(data_type)?, format: None })
-        },
-        Expr::Literal(value) => Ok(scalar_to_sql(value)?),
-        Expr::Alias(Alias { expr, name: _, .. }) => {
-            expr_to_sql(expr, dialect.clone())
+            Ok(SQLExpr::Cast {
+                expr: Box::new(inner_expr),
+                data_type: df_to_sql_data_type(data_type)?,
+                format: None,
+            })
         }
+        Expr::Literal(value) => Ok(scalar_to_sql(value)?),
+        Expr::Alias(Alias { expr, name: _, .. }) => expr_to_sql(expr, dialect.clone()),
         Expr::WindowFunction(WindowFunction {
             fun: _,
             args: _,
@@ -423,8 +424,10 @@ fn expr_to_sql(
             case_insensitive: _,
         }) => {
             not_impl_err!("Unsupported Like expression: {expr:?}")
-        },
-        Expr::ScalarVariable(_, _) => not_impl_err!("Unsupported ScalarVariable expression: {expr:?}"),
+        }
+        Expr::ScalarVariable(_, _) => {
+            not_impl_err!("Unsupported ScalarVariable expression: {expr:?}")
+        }
         Expr::SimilarTo(_) => not_impl_err!("Unsupported SimilarTo expression: {expr:?}"),
         Expr::Not(_) => not_impl_err!("Unsupported Not expression: {expr:?}"),
         Expr::IsNotNull(_) => not_impl_err!("Unsupported IsNotNull expression: {expr:?}"),
@@ -436,31 +439,36 @@ fn expr_to_sql(
         Expr::IsNotFalse(_) => not_impl_err!("Unsupported IsNotFalse expression: {expr:?}"),
         Expr::IsNotUnknown(_) => not_impl_err!("Unsupported IsNotUnknown expression: {expr:?}"),
         Expr::Negative(_) => not_impl_err!("Unsupported Negative expression: {expr:?}"),
-        Expr::GetIndexedField(_) => not_impl_err!("Unsupported GetIndexedField expression: {expr:?}"),
+        Expr::GetIndexedField(_) => {
+            not_impl_err!("Unsupported GetIndexedField expression: {expr:?}")
+        }
         Expr::TryCast(_) => not_impl_err!("Unsupported TryCast expression: {expr:?}"),
         Expr::Sort(_) => not_impl_err!("Unsupported Sort expression: {expr:?}"),
         Expr::AggregateFunction(agg) => {
-            let func_name = if let AggregateFunctionDefinition::BuiltIn(built_in) = &agg.func_def{
+            let func_name = if let AggregateFunctionDefinition::BuiltIn(built_in) = &agg.func_def {
                 built_in.name()
-            } else{
+            } else {
                 return not_impl_err!("Only built in agg functions are supported, got {agg:?}");
             };
 
-            let args = agg.args
+            let args = agg
+                .args
                 .iter()
                 .map(|e| {
-                    if matches!(e, Expr::Wildcard { qualifier: None }){
+                    if matches!(e, Expr::Wildcard { qualifier: None }) {
                         Ok(FunctionArg::Unnamed(ast::FunctionArgExpr::Wildcard))
-                    } else{
-                        expr_to_sql(e, dialect.clone()).map(|e| {
-                            FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e))
-                        })
-                    }  
+                    } else {
+                        expr_to_sql(e, dialect.clone())
+                            .map(|e| FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)))
+                    }
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-            Ok(SQLExpr::Function(Function{
-                name: ast::ObjectName(vec![Ident{ value: func_name.to_string(), quote_style: None}]),
+            Ok(SQLExpr::Function(Function {
+                name: ast::ObjectName(vec![Ident {
+                    value: func_name.to_string(),
+                    quote_style: None,
+                }]),
                 args,
                 filter: None,
                 null_treatment: None,
@@ -469,19 +477,23 @@ fn expr_to_sql(
                 special: false,
                 order_by: vec![],
             }))
-        },
+        }
         Expr::Exists(_) => not_impl_err!("Unsupported Exists expression: {expr:?}"),
         Expr::InSubquery(_) => not_impl_err!("Unsupported InSubquery expression: {expr:?}"),
         Expr::ScalarSubquery(_) => not_impl_err!("Unsupported ScalarSubquery expression: {expr:?}"),
-        Expr::Wildcard { qualifier: _ } => not_impl_err!("Unsupported Wildcard expression: {expr:?}"),
+        Expr::Wildcard { qualifier: _ } => {
+            not_impl_err!("Unsupported Wildcard expression: {expr:?}")
+        }
         Expr::GroupingSet(_) => not_impl_err!("Unsupported GroupingSet expression: {expr:?}"),
         Expr::Placeholder(_) => not_impl_err!("Unsupported Placeholder expression: {expr:?}"),
-        Expr::OuterReferenceColumn(_, _) => not_impl_err!("Unsupported OuterReferenceColumn expression: {expr:?}"),
+        Expr::OuterReferenceColumn(_, _) => {
+            not_impl_err!("Unsupported OuterReferenceColumn expression: {expr:?}")
+        }
     }
 }
 
-fn df_to_sql_data_type(data_type: &DataType) -> Result<SQLDataType>{
-    match data_type{
+fn df_to_sql_data_type(data_type: &DataType) -> Result<SQLDataType> {
+    match data_type {
         DataType::Null => not_impl_err!("Unsupported DataType: conversion: {data_type:?}"),
         DataType::Boolean => Ok(SQLDataType::Bool),
         DataType::Int8 => Ok(SQLDataType::TinyInt(None)),
@@ -495,7 +507,9 @@ fn df_to_sql_data_type(data_type: &DataType) -> Result<SQLDataType>{
         DataType::Float16 => not_impl_err!("Unsupported DataType: conversion: {data_type:?}"),
         DataType::Float32 => Ok(SQLDataType::Float(None)),
         DataType::Float64 => Ok(SQLDataType::Double),
-        DataType::Timestamp(_, _) => not_impl_err!("Unsupported DataType: conversion: {data_type:?}"),
+        DataType::Timestamp(_, _) => {
+            not_impl_err!("Unsupported DataType: conversion: {data_type:?}")
+        }
         DataType::Date32 => Ok(SQLDataType::Date),
         DataType::Date64 => Ok(SQLDataType::Datetime(None)),
         DataType::Time32(_) => todo!(),
@@ -581,9 +595,13 @@ fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
         ScalarValue::Null => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Boolean(Some(b)) => Ok(SQLExpr::Value(ast::Value::Boolean(b.to_owned()))),
         ScalarValue::Boolean(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::Float32(Some(f)) => Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false))),
+        ScalarValue::Float32(Some(f)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false)))
+        }
         ScalarValue::Float32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::Float64(Some(f)) => Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false))),
+        ScalarValue::Float64(Some(f)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(f.to_string(), false)))
+        }
         ScalarValue::Float64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Decimal128(Some(_), ..) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::Decimal128(None, ..) => Ok(SQLExpr::Value(ast::Value::Null)),
@@ -597,17 +615,29 @@ fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
         ScalarValue::Int32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Int64(Some(i)) => Ok(SQLExpr::Value(ast::Value::Number(i.to_string(), false))),
         ScalarValue::Int64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::UInt8(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt8(Some(ui)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false)))
+        }
         ScalarValue::UInt8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::UInt16(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt16(Some(ui)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false)))
+        }
         ScalarValue::UInt16(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::UInt32(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt32(Some(ui)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false)))
+        }
         ScalarValue::UInt32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::UInt64(Some(ui)) => Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false))),
+        ScalarValue::UInt64(Some(ui)) => {
+            Ok(SQLExpr::Value(ast::Value::Number(ui.to_string(), false)))
+        }
         ScalarValue::UInt64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::Utf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(str.to_string()))),
+        ScalarValue::Utf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(
+            str.to_string(),
+        ))),
         ScalarValue::Utf8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
-        ScalarValue::LargeUtf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(str.to_string()))),
+        ScalarValue::LargeUtf8(Some(str)) => Ok(SQLExpr::Value(ast::Value::SingleQuotedString(
+            str.to_string(),
+        ))),
         ScalarValue::LargeUtf8(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Binary(Some(_)) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::Binary(None) => Ok(SQLExpr::Value(ast::Value::Null)),
@@ -618,20 +648,30 @@ fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
         ScalarValue::List(_a) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::LargeList(_a) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::Date32(Some(d)) => {
-            let date =  NaiveDate::from_num_days_from_ce_opt(d + DAYS_FROM_CE_TO_UNIX_EPOCH)
-                .ok_or(DataFusionError::NotImplemented(format!(
-                    "Date overflow error for {d:?}"
-                )))?;
-            Ok(SQLExpr::Cast { expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(date.to_string()))), data_type: SQLDataType::Date, format: None })
-        },
+            let date = NaiveDate::from_num_days_from_ce_opt(d + DAYS_FROM_CE_TO_UNIX_EPOCH).ok_or(
+                DataFusionError::NotImplemented(format!("Date overflow error for {d:?}")),
+            )?;
+            Ok(SQLExpr::Cast {
+                expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(
+                    date.to_string(),
+                ))),
+                data_type: SQLDataType::Date,
+                format: None,
+            })
+        }
         ScalarValue::Date32(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Date64(Some(ms)) => {
-            let datetime = NaiveDateTime::from_timestamp_millis(*ms)
-                .ok_or(DataFusionError::NotImplemented(format!(
-                    "Datetime overflow error for {ms:?}"
-                )))?;
-            Ok(SQLExpr::Cast { expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(datetime.to_string()))), data_type: SQLDataType::Datetime(None), format: None })
-        },
+            let datetime = NaiveDateTime::from_timestamp_millis(*ms).ok_or(
+                DataFusionError::NotImplemented(format!("Datetime overflow error for {ms:?}")),
+            )?;
+            Ok(SQLExpr::Cast {
+                expr: Box::new(SQLExpr::Value(ast::Value::SingleQuotedString(
+                    datetime.to_string(),
+                ))),
+                data_type: SQLDataType::Datetime(None),
+                format: None,
+            })
+        }
         ScalarValue::Date64(None) => Ok(SQLExpr::Value(ast::Value::Null)),
         ScalarValue::Time32Second(Some(_t)) => not_impl_err!("Unsupported scalar: {v:?}"),
         ScalarValue::Time32Second(None) => Ok(SQLExpr::Value(ast::Value::Null)),
@@ -676,25 +716,20 @@ fn scalar_to_sql(v: &ScalarValue) -> Result<SQLExpr> {
 }
 
 fn col_to_sql(col: &Column, dialect: Arc<dyn Dialect>) -> Result<ast::Expr> {
-    let expr = if let Some(relation) = &col.relation{
+    let expr = if let Some(relation) = &col.relation {
         ast::Expr::CompoundIdentifier(
-            [
-                relation.table().to_string(),
-                col.name.to_string(),
-            ]
-            .iter()
-            .map(|i| new_ident(i.to_string(), dialect.clone()))
-            .collect()
+            [relation.table().to_string(), col.name.to_string()]
+                .iter()
+                .map(|i| new_ident(i.to_string(), dialect.clone()))
+                .collect(),
         )
-    } else{
+    } else {
         ast::Expr::Identifier(new_ident(col.name.to_string(), dialect.clone()))
     };
-    Ok(
-        expr
-    )
+    Ok(expr)
 }
 
-fn join_operator_to_sql(join_type: JoinType, constraint: ast::JoinConstraint) -> JoinOperator {
+fn _join_operator_to_sql(join_type: JoinType, constraint: ast::JoinConstraint) -> JoinOperator {
     match join_type {
         JoinType::Inner => JoinOperator::Inner(constraint),
         JoinType::Left => JoinOperator::LeftOuter(constraint),
@@ -720,10 +755,7 @@ fn join_conditions_to_sql(
         // Parse left
         let l = expr_to_sql(left, dialect.clone())?;
         // Parse right
-        let r = expr_to_sql(
-            right,
-            dialect.clone(),
-        )?;
+        let r = expr_to_sql(right, dialect.clone())?;
         // AND with existing expression
         exprs.push(binary_op_to_sql(l, r, eq_op.clone()));
     }
@@ -772,4 +804,3 @@ fn dml_to_sql(_plan: &LogicalPlan) -> Result<ast::Statement> {
 fn builder_error_to_df(e: BuilderError) -> DataFusionError {
     DataFusionError::External(format!("{e}").into())
 }
-

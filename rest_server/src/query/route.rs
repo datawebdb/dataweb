@@ -190,10 +190,11 @@ async fn query(
     }
 
     debug!("Checking if sql template is valid...");
-    let (entity_name, statement, logical_schema) = validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
-    if query.return_arrow_schema.is_some(){
+    let (entity_name, statement, logical_schema) =
+        validate_sql_and_logical_round_trip(&query.sql, &mut db).await?;
+    if query.return_arrow_schema.is_some() {
         ()
-    } else{
+    } else {
         query.return_arrow_schema = Some(logical_schema);
     }
 

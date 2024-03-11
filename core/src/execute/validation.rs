@@ -6,33 +6,6 @@ use crate::error::MeshError;
 
 use arrow_schema::Schema;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use datafusion::sql::planner::SqlToRel;
 use datafusion::sql::sqlparser::ast::{
     visit_relations, Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow,
@@ -88,7 +61,10 @@ pub fn validate_sql(sql: &str) -> Result<(String, Statement)> {
 
 /// Uses datafusion to logically plan and optimize the [Statement], ultimately converting back to
 /// a [Statement] which has alias names resolved, columns fully qualified, expressions simplified and more.
-pub fn logical_round_trip(statement: Statement, context: EntityContext) -> Result<(Statement, Schema)> {
+pub fn logical_round_trip(
+    statement: Statement,
+    context: EntityContext,
+) -> Result<(Statement, Schema)> {
     let sql_to_rel = SqlToRel::new(&context);
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
     debug!("Unoptimized Plan: {}", logical_plan.display_indent());
@@ -394,9 +370,11 @@ fn validate_expr(expr: &Expr) -> Result<()> {
                 "MatchAgainst query expressions are not allowed".into(),
             ))
         }
-        _ => return Err(MeshError::NotImplemented(
-            "Unrecognized query expression is not implemented".into(),
-        ))
+        _ => {
+            return Err(MeshError::NotImplemented(
+                "Unrecognized query expression is not implemented".into(),
+            ))
+        }
     }
     Ok(())
 }

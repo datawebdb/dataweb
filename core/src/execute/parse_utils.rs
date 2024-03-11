@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use datafusion::{execution::context::ExecutionProps, optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext, SimplifyExpressions}, sql::sqlparser::{
+use datafusion::{sql::sqlparser::{
     ast::{
         visit_expressions_mut, Expr, GroupByExpr, Ident, Query, Select, SelectItem, SetExpr,
         Statement, TableFactor, TableWithJoins,

@@ -38,7 +38,7 @@ pub fn from_df_plan(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast
 }
 
 pub fn from_df_expr(expr: &Expr, dialect: Arc<dyn Dialect>) -> Result<SQLExpr> {
-    let schema = DFSchema::empty();
+    let _schema = DFSchema::empty();
     expr_to_sql(expr, dialect)
 }
 
@@ -61,10 +61,10 @@ fn query_to_sql(plan: &LogicalPlan, dialect: Arc<dyn Dialect>) -> Result<ast::St
         | LogicalPlan::Statement(_)
         | LogicalPlan::Values(_)
         | LogicalPlan::Distinct(_) => {
-            let mut query_builder = QueryBuilder::default();
+            let query_builder = QueryBuilder::default();
             let mut select_builder = SelectBuilder::default();
             select_builder.push_from(TableWithJoinsBuilder::default());
-            let mut relation_builder = RelationBuilder::default();
+            let relation_builder = RelationBuilder::default();
             select_to_sql(
                 plan,
                 query_builder,
@@ -240,7 +240,7 @@ fn select_to_sql(
                 dialect.clone(),
             )
         }
-        LogicalPlan::Aggregate(agg) => {
+        LogicalPlan::Aggregate(_agg) => {
             not_impl_err!("Unsupported aggregation plan not following a projection: {plan:?}")
         }
         LogicalPlan::Distinct(_distinct) => {
@@ -255,7 +255,7 @@ fn select_to_sql(
             }
 
             // parse filter if exists
-            let in_join_schema = join.left.schema().join(join.right.schema())?;
+            let _in_join_schema = join.left.schema().join(join.right.schema())?;
             let join_filter = match &join.filter {
                 Some(filter) => Some(expr_to_sql(
                     filter,
@@ -336,8 +336,8 @@ fn select_to_sql(
 
 fn select_item_to_sql(
     expr: &Expr,
-    schema: &DFSchemaRef,
-    col_ref_offset: usize,
+    _schema: &DFSchemaRef,
+    _col_ref_offset: usize,
     dialect: Arc<dyn Dialect>,
 ) -> Result<ast::SelectItem> {
     match expr {
@@ -710,8 +710,8 @@ fn join_operator_to_sql(join_type: JoinType, constraint: ast::JoinConstraint) ->
 fn join_conditions_to_sql(
     join_conditions: &Vec<(Expr, Expr)>,
     eq_op: ast::BinaryOperator,
-    left_schema: &DFSchemaRef,
-    right_schema: &DFSchemaRef,
+    _left_schema: &DFSchemaRef,
+    _right_schema: &DFSchemaRef,
     dialect: Arc<dyn Dialect>,
 ) -> Result<Option<SQLExpr>> {
     // Only support AND conjunction for each binary expression in join conditions

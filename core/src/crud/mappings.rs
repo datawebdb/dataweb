@@ -7,7 +7,7 @@ use crate::{
         entity::Information,
         mappings::{Mapping, NewRemoteEntityMapping, RemoteEntityMapping, RemoteInfoMapping},
         relay::Relay,
-    }, schema::remote_info_mapping::info_mapped_name,
+    },
 };
 use crate::{error::Result, model::entity::Entity};
 

@@ -7,6 +7,7 @@ use crate::error::MeshError;
 use arrow_schema::Schema;
 
 use datafusion::sql::planner::SqlToRel;
+use datafusion::sql::sqlparser::ast::TopQuantity;
 use datafusion::sql::sqlparser::ast::{
     visit_relations, Distinct, Expr, FunctionArg, FunctionArgExpr, GroupByExpr, ListAggOnOverflow,
     Select, SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
@@ -14,7 +15,7 @@ use datafusion::sql::sqlparser::ast::{
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
 use datafusion::sql::sqlparser::parser::Parser;
-use datafusion_sql_writer::from_df_plan;
+use datafusion::sql::unparser::plan_to_sql;
 use tracing::debug;
 
 use super::planning::EntityContext;
@@ -69,7 +70,7 @@ pub fn logical_round_trip(
     let logical_plan = sql_to_rel.sql_statement_to_plan(statement)?;
     debug!("Unoptimized Plan: {}", logical_plan.display_indent());
     let schema: Schema = logical_plan.schema().as_ref().into();
-    let statement = from_df_plan(&logical_plan, Arc::new(PostgreSqlDialect {}))?;
+    let statement = plan_to_sql(&logical_plan)?;
     Ok((statement, schema))
 }
 
@@ -423,7 +424,7 @@ fn validate_select_setexpr(select: &Select) -> Result<()> {
     }
 
     if let Some(top) = &select.top {
-        if let Some(expr) = &top.quantity {
+        if let Some(TopQuantity::Expr(expr)) = &top.quantity {
             validate_expr(expr)?;
         }
     }

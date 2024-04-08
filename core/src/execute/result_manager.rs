@@ -70,7 +70,7 @@ impl ResultManager {
         let path = Path::parse(format!("task_{}/result.parquet", task_id))?;
         let (_, multipart) = self.object_store.put_multipart(&path).await?;
         let mut writer =
-            AsyncArrowWriter::try_new(multipart, schema, 10485760, None).map_err(|e| {
+            AsyncArrowWriter::try_new(multipart, schema, None).map_err(|e| {
                 MeshError::Internal(format!(
                     "Parquet serialization error in task serialization! {e}"
                 ))

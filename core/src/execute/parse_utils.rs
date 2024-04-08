@@ -52,6 +52,7 @@ pub(crate) fn projected_filtered_query(
             having: None,
             named_window: vec![],
             qualify: None,
+            value_table_mode: None,
         }))),
         order_by: vec![],
         limit: None,

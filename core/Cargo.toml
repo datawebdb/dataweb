@@ -18,14 +18,13 @@ arrow-json = { workspace = true }
 arrow-flight = { workspace = true }
 async-trait = "0.1.77"
 datafusion = { workspace = true }
-datafusion-sql-writer = { path="../sql-writer" }
 diesel = { version = "2.1.3", features = ["postgres", "serde_json", "uuid"] }
 diesel_migrations="2.0.0"
 diesel-async = { version="0.4.1", features = ["postgres", "bb8"] }
 diesel-derive-enum = { version = "2.1.0", features = ["postgres"] }
 diesel_as_jsonb = "1.0.0"
 itertools = "0.11.0"
-object_store = {version="0.8.0"}
+object_store = {version="0.9.1"}
 regex = "1.10.2"
 serde = { version="1.0.189", features = ["derive"] }
 serde_json = "1.0.107"
@@ -41,7 +40,7 @@ rustls = "0.21.8"
 sha2 = "0.10.8"
 x509-parser = "0.15.1"
 rustls-pemfile = "1.0.4"
-tonic = {version="0.10.2", features=["tls"] }
+tonic = {version="0.11.0", features=["tls"] }
 http = "0.2.9"
 async-channel = {version="2.1.1", optional=true }
 prusto = {version="0.5.1", optional=true }

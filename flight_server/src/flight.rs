@@ -4,7 +4,7 @@ use arrow_flight::encode::FlightDataEncoderBuilder;
 use arrow_flight::error::FlightError;
 use arrow_flight::flight_service_client::FlightServiceClient;
 use arrow_flight::utils::flight_data_to_arrow_batch;
-use arrow_flight::{FlightClient, FlightEndpoint};
+use arrow_flight::{FlightClient, FlightEndpoint, PollInfo};
 use arrow_schema::{Field, Schema};
 use datafusion::error::DataFusionError;
 use datafusion::physical_plan::SendableRecordBatchStream;
@@ -702,6 +702,13 @@ impl FlightService for FlightRelay {
         Ok(Response::new(
             Box::pin(futures::stream::once(async { Ok(do_put_result) })) as Self::DoPutStream,
         ))
+    }
+
+    async fn poll_flight_info(
+        &self,
+        _blah: tonic::Request<FlightDescriptor>,
+    ) -> Result<Response<PollInfo>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
     }
 
     async fn do_action(

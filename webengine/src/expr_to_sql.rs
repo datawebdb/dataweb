@@ -1,6 +1,6 @@
 use arrow::datatypes::SchemaRef;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate};
 use datafusion::{
     common::{not_impl_err, Result},
     logical_expr::Expr,
@@ -156,7 +156,7 @@ fn scalar_value_to_sql(val: &ScalarValue) -> Result<String> {
         }
         ScalarValue::Date64(d) => {
             let datetime = match d {
-                Some(ms) => NaiveDateTime::from_timestamp_millis(*ms),
+                Some(ms) => DateTime::from_timestamp_millis(*ms),
                 None => return not_impl_err!("Got unsupported 'None' ScalarValue {d:?}"),
             }
             .ok_or(DataFusionError::NotImplemented(format!(

@@ -7,7 +7,6 @@ members = [
     "flight_server",
     "single_binary_deployment",
     "webengine",
-    "sql-writer",
 ]
 resolver = "2"
 
@@ -17,13 +16,13 @@ version = "0.0.1"
 edition = "2021"
 
 [workspace.dependencies]
-arrow = "49.0.0"
-arrow-flight = { version="49.0.0", features = ["flight-sql-experimental"]}
-arrow-schema = { version="49.0.0", features = ["serde"]}
-arrow-array = "49.0.0"
-arrow-json = "49.0.0"
+arrow = "51.0.0"
+arrow-flight = { version="51.0.0", features = ["flight-sql-experimental"]}
+arrow-schema = { version="51.0.0", features = ["serde"]}
+arrow-array = "51.0.0"
+arrow-json = "51.0.0"
 async-trait = "0.1.74"
-datafusion = { version = "34.0.0" }
+datafusion = { version = "37.0.0" }
 itertools = "0.11.0"
 serde = { version="1.0.189", features = ["derive"] }
 serde_json = "1.0.107"

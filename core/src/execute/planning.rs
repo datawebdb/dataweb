@@ -1,7 +1,7 @@
 use std::{any::Any, sync::Arc};
 
 use arrow_schema::{DataType, SchemaRef};
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::{
     common::plan_err,
     config::ConfigOptions,
@@ -58,6 +58,18 @@ impl ContextProvider for EntityContext {
 
     fn options(&self) -> &ConfigOptions {
         &self.options
+    }
+
+    fn udfs_names(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn udafs_names(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn udwfs_names(&self) -> Vec<String> {
+        vec![]
     }
 }
 

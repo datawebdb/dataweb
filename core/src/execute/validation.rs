@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::error::Result;
 
 use crate::error::MeshError;
@@ -13,7 +11,7 @@ use datafusion::sql::sqlparser::ast::{
     Select, SelectItem, SetExpr, Statement, TableFactor, WindowFrameBound, WindowSpec, WindowType,
 };
 use datafusion::sql::sqlparser::dialect::GenericDialect;
-use datafusion::sql::sqlparser::dialect::PostgreSqlDialect;
+
 use datafusion::sql::sqlparser::parser::Parser;
 use datafusion::sql::unparser::plan_to_sql;
 use tracing::debug;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use actix_web::HttpResponse;
+#[allow(deprecated)]
 use arrow::json::writer::record_batches_to_json_rows;
 use arrow::record_batch::RecordBatch;
 
@@ -57,6 +58,7 @@ pub(crate) fn convert_rb_to_serialized_json_records(
     batch: RecordBatch,
     metadata: Arc<Value>,
 ) -> Result<bytes::Bytes, DataFusionError> {
+    #[allow(deprecated)]
     let js = record_batches_to_json_rows(&[&batch])
         .map_err(|_e| DataFusionError::Execution("Serialization to json failed".into()))?;
     let mut serialized = vec![];

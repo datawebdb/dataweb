@@ -704,7 +704,10 @@ impl FlightService for FlightRelay {
         ))
     }
 
-    async fn poll_flight_info(&self, blah: tonic::Request<FlightDescriptor>) -> Result<Response<PollInfo>, Status> {
+    async fn poll_flight_info(
+        &self,
+        _blah: tonic::Request<FlightDescriptor>,
+    ) -> Result<Response<PollInfo>, Status> {
         Err(Status::unimplemented("Not yet implemented"))
     }
 

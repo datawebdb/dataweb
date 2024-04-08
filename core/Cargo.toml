@@ -41,7 +41,7 @@ rustls = "0.21.8"
 sha2 = "0.10.8"
 x509-parser = "0.15.1"
 rustls-pemfile = "1.0.4"
-tonic = {version="0.10.2", features=["tls"] }
+tonic = {version="0.11.0", features=["tls"] }
 http = "0.2.9"
 async-channel = {version="2.1.1", optional=true }
 prusto = {version="0.5.1", optional=true }

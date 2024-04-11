@@ -9,7 +9,7 @@ edition.workspace = true
 [dependencies]
 mesh = {path = "../core"}
 arrow-schema = { workspace = true }
-itertools = "0.11.0"
+itertools = "0.12.1"
 object_store = "0.7.1"
 regex = "1.10.2"
 serde = { version="1.0.189", features = ["derive"] }

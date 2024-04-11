@@ -2855,7 +2855,7 @@ dependencies = [
  "diesel_migrations",
  "futures",
  "http",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "object_store 0.9.1",
  "prusto",
  "regex",
@@ -3581,7 +3581,7 @@ version = "0.0.1"
 dependencies = [
  "arrow-schema 51.0.0",
  "clap",
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "mesh",
  "object_store 0.7.1",
  "regex",

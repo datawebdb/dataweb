@@ -9,7 +9,7 @@ edition.workspace = true
 [dependencies]
 mesh = {path = "../core"}
 arrow-schema = { workspace = true }
-itertools = "0.11.0"
+itertools = "0.12.1"
 object_store = "0.7.1"
 regex = "1.10.2"
 serde = { version="1.0.189", features = ["derive"] }
@@ -17,6 +17,6 @@ serde_json = "1.0.107"
 tokio = {version = "1.33.0", features=["full"] }
 url = "2.4.1"
 clap = {version="4.5.4", features = ["derive"] }
-serde_yaml = "0.9.27"
+serde_yaml = "0.9.34"
 walkdir = "2.4.0"
 reqwest = {workspace = true}

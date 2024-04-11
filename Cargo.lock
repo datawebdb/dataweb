@@ -2012,14 +2012,14 @@ dependencies = [
 
 [[package]]
 name = "diesel_as_jsonb"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc25acd76bc20f38d0384f77a3d6ce768f95c76f433a5bea16c825d194158f64"
+checksum = "1fed12da7b323154e8119a5d0359158da61436ce6150f8322863de7d774104d8"
 dependencies = [
  "heck 0.4.1",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.50",
 ]
 
 [[package]]

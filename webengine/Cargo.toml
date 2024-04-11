@@ -14,7 +14,7 @@ arrow = "47.0.0"
 arrow-schema = { version="47.0.0", features=["serde"]}
 arrow-flight = { version="47.0.0", features = ["flight-sql-experimental"]}
 async-trait = "0.1.74"
-datafusion = { version = "32.0.0" }
+datafusion = { version = "37.0.0" }
 tonic = { version="0.10.2", features=["tls"] }
 futures = "0.3"
 bytes = "1.6.0"

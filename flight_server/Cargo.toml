@@ -30,6 +30,6 @@ tracing-subscriber = {workspace = true}
 tracing = {workspace = true}
 serde.workspace = true
 serde_json.workspace = true
-rustls = "0.21.9"
+rustls = "0.22.3"
 rustls-pemfile = "1.0.4"
 arrow-cast = "47.0.0"
